@@ -1,0 +1,75 @@
+# =============================================================================
+# AutoScoring Docker Compose - GPU Version
+# Lab FKI Universitas Muhammadiyah Surakarta
+# =============================================================================
+# Usage: docker-compose up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  autoscoring:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoscoring
+    restart: unless-stopped
+    
+    # GPU support via NVIDIA Container Toolkit
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    ports:
+      - "5000:5000"
+    
+    volumes:
+      # Persist database
+      - ./data:/app/instance
+      # Persist logs
+      - ./logs:/app/logs
+      # Persist results (optional)
+      - ./results:/app/results
+    
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=false
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - DATABASE_URL=sqlite:///instance/autoscoring.db
+      - MAX_PDF_COUNT=${MAX_PDF_COUNT:-50}
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+      - ENABLE_OCR=${ENABLE_OCR:-true}
+      - ENABLE_CLEANUP=${ENABLE_CLEANUP:-true}
+      # Gemini API Keys
+      - GEMINI_API_KEY_1=${GEMINI_API_KEY_1}
+      - GEMINI_API_KEY_2=${GEMINI_API_KEY_2}
+      - GEMINI_API_KEY_3=${GEMINI_API_KEY_3}
+      - GEMINI_API_KEY_4=${GEMINI_API_KEY_4}
+      - GEMINI_API_KEY_5=${GEMINI_API_KEY_5}
+      - GEMINI_API_KEY_6=${GEMINI_API_KEY_6}
+      - GEMINI_API_KEY_7=${GEMINI_API_KEY_7}
+      - GEMINI_API_KEY_8=${GEMINI_API_KEY_8}
+      - GEMINI_API_KEY_9=${GEMINI_API_KEY_9}
+      - GEMINI_API_KEY_10=${GEMINI_API_KEY_10}
+      - GEMINI_API_KEY_11=${GEMINI_API_KEY_11}
+      - GEMINI_API_KEY_12=${GEMINI_API_KEY_12}
+      - GEMINI_API_KEY_13=${GEMINI_API_KEY_13}
+      - GEMINI_API_KEY_14=${GEMINI_API_KEY_14}
+      - GEMINI_API_KEY_15=${GEMINI_API_KEY_15}
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# Named volumes for persistence
+volumes:
+  autoscoring_data:
+  autoscoring_logs:
+  autoscoring_results:

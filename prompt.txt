@@ -1,0 +1,71 @@
+Make Flask (Python-Web) Program with following specs
+this program goal to help lecturer  to score the students homework or lab report with help of LLM
+the study program is Informatics and the major is vary
+institution : Lab FKI Universitas Muhammadiyah Surakarta
+This is an internal academic tool, not a public SaaS.
+
+the inputs for the LLM are 
+1. 1 pdf file as 'kunci jawaban' (example of 100% score result | optional)
+2. Multiple PDF file from students to be scored 
+  up to 50 students (default max 50 PDF ; configurable from .env)
+3. system prompt (hidden from users ; defined by system)
+4. additional parameters 
+  - score range (default 40-100 ; configurable from dashboard)
+  
+the output is a csv file with naming username_timestamp.csv
+contain these entries:
+1. No (numbering)
+2. NIM (student number)
+3. student_name
+4. Score
+5. Evaluation (short evaluation or reason why that score given; max 100 words | can be disabled/enable on dashboard)
+
+System requirements :
+1. Language : Bahasa Indonesia
+2. simple login page (must login to use this app feature)
+   default admin login : username=admin | password=informatika
+   1 Users : username=aslab | password=informatika1
+   no login timeout
+3. flask-admin page
+   change password & user management can be done in admin page
+   accessible from url baseurl/admin
+4. Dashboard
+   user able to bulk upload the students Lab Report PDF and upload the 'kunci jawaban'
+   user define the score range
+   user click on button and the scoring process starts
+   fancy loading bar with some note (e.g 'Mengunggah file' , 'Membaca dokumen', 'Menilai laporan' , 'Menyusun hasil' , 'Selesai')
+   user download the result .csv file.
+   logout button
+   
+   report to user if failure happened all tell them why.
+   
+tech stack : flask & Docling
+https://github.com/docling-project/docling
+
+additional requirements
+- use docling for pdf parser so the data is LLM ready (use context7 - read its docs)
+- use easyOCR via docling (default=enabled | configurable via .env)
+- Database use sqlite3 ; ORM use sqlAlchemy
+- all uploaded documents will be deleted at every start of application or at time 02.00 AM WIB every night (can be disabled on .env)
+  so i can keep the running app lightweight
+- write the .env.example ;  complete README & gitignore ;  'pipfreeze > requirements.txt' to generate requirements list
+- only accept pdf format uploaded file (add file type validation)
+- keep the web design simple and intuitive.
+- save app logs
+  Login attempts, Upload actions, LLM errors, GPU/CPU mode,Cleanup events, etc.
+- CORS and CSRF websites or allowed sites are configurable from .env (default all [*])
+- enable multithreading for sequential scoring process (number of worker configurable from .env)
+
+# LLM
+use gemini-2.5-flah from google ai studio
+in .env there are 15 gemini api key (look in .env.example)
+roundrobin the gemini api key on sequential scroing process
+add failsafe to assign unused API key when reached rate-limit
+
+
+I heard docling default will use GPU as possible, i want it to use gpu if possible  
+make this app deploy-able on docker
+use context7 to read documentation (e.g. docling, flask, easyocr)
+Read prompt.md for additional and complete system requirements
+use figures\readme.png diagram image on readme
+use figures\Favicon.png or figures\web for web icons

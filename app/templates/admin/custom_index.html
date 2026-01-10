@@ -1,0 +1,141 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="h3 mb-4">
+                <i class="bi bi-gear me-2"></i>Admin Panel - AutoScoring
+            </h1>
+        </div>
+    </div>
+    
+    <!-- System Info -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-cpu me-2"></i>Informasi Sistem
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td><strong>Mode Pemrosesan:</strong></td>
+                            <td>
+                                {% if system_info.gpu_available %}
+                                    <span class="badge bg-success">GPU</span>
+                                    {{ system_info.gpu_name }}
+                                {% else %}
+                                    <span class="badge bg-secondary">CPU</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Maks. File PDF:</strong></td>
+                            <td>{{ system_info.max_pdf_count }} file</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Maks. Worker:</strong></td>
+                            <td>{{ system_info.max_workers }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>OCR:</strong></td>
+                            <td>
+                                {% if system_info.enable_ocr %}
+                                    <span class="badge bg-success">Aktif</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Nonaktif</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cleanup Otomatis:</strong></td>
+                            <td>
+                                {% if system_info.enable_cleanup %}
+                                    <span class="badge bg-success">Aktif</span>
+                                    (02:00 WIB)
+                                {% else %}
+                                    <span class="badge bg-secondary">Nonaktif</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart me-2"></i>Statistik
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="display-6 text-primary">{{ stats.total_users }}</div>
+                            <small class="text-muted">Total Pengguna</small>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="display-6 text-info">{{ stats.total_jobs }}</div>
+                            <small class="text-muted">Total Pekerjaan</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="display-6 text-success">{{ stats.completed_jobs }}</div>
+                            <small class="text-muted">Selesai</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="display-6 text-danger">{{ stats.failed_jobs }}</div>
+                            <small class="text-muted">Gagal</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Links -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightning me-2"></i>Menu Cepat
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('user.index_view') }}" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-people d-block mb-2" style="font-size: 2rem;"></i>
+                                Kelola Pengguna
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('job.index_view') }}" class="btn btn-outline-info w-100">
+                                <i class="bi bi-briefcase d-block mb-2" style="font-size: 2rem;"></i>
+                                Lihat Pekerjaan
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('jobresult.index_view') }}" class="btn btn-outline-success w-100">
+                                <i class="bi bi-file-earmark-spreadsheet d-block mb-2" style="font-size: 2rem;"></i>
+                                Hasil Penilaian
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('systemlog.index_view') }}" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-journal-text d-block mb-2" style="font-size: 2rem;"></i>
+                                Log Sistem
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
