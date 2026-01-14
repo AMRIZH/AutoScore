@@ -1,29 +1,72 @@
 # AutoScoring
+<h3 align="center">Sistem Penilaian Otomatis Laporan Praktikum Mahasiswa</h3>
 
-![AutoScoring](figures/readme.png)
+<p align="center">
+  <strong>Lab FKI Universitas Muhammadiyah Surakarta</strong><br>
+  Program Studi Informatika
+</p>
+---
 
-**Sistem Penilaian Otomatis Laporan Praktikum Mahasiswa**
+## 📸 Demo Aplikasi
 
-AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM).
+<p align="center">
+  <img src="figures/dashboard.png" alt="AutoScoring Dashboard" width="800">
+</p>
 
-## 🏛️ Institusi
+<p align="center"><em>Dashboard Penilaian AutoScoring - Upload laporan, atur parameter, dan mulai penilaian otomatis</em></p>
 
-**Lab FKI Universitas Muhammadiyah Surakarta**  
-Program Studi Informatika
+### Alur Kerja Sistem
+
+<p align="center">
+  <img src="figures/workflow.png" alt="AutoScoring Workflow" width="600">
+</p>
+
+<p align="center"><em>Diagram alur kerja sistem AutoScoring - dari upload hingga export hasil</em></p>
+
+---
+
+## 📖 Tentang AutoScoring
+
+AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM) Google Gemini 2.5 Flash.
+
+### Mengapa AutoScoring?
+
+| Masalah Tradisional | Solusi AutoScoring |
+|---------------------|-------------------|
+| ⏱️ Penilaian manual memakan waktu 2-3 menit per laporan | ⚡ Penilaian otomatis dalam hitungan detik |
+| 😓 Inkonsistensi akibat kelelahan penilai | 🎯 Konsistensi penilaian dengan standar yang sama |
+| 📅 Keterlambatan umpan balik ke mahasiswa | 📊 Hasil instan dalam format CSV |
+| 💰 Biaya langganan platform grading mahal | 🆓 Self-hosted, gratis, data tetap di institusi |
 
 ---
 
 ## ✨ Fitur Utama
 
-- 📄 **Upload PDF Massal** - Unggah hingga 50 file PDF laporan mahasiswa sekaligus
-- 🔑 **Kunci Jawaban Opsional** - Gunakan PDF referensi sebagai acuan penilaian
-- 🤖 **Penilaian AI** - Menggunakan Google Gemini 2.5 Flash untuk menilai laporan
-- 📊 **Export CSV** - Hasil penilaian dalam format CSV yang mudah dikelola
-- 🔄 **Round-Robin API** - Rotasi 15 API key untuk menghindari rate limit
-- 🖥️ **GPU Support** - Akselerasi GPU untuk parsing PDF dengan Docling
-- 🔒 **Sistem Login** - Autentikasi pengguna dengan role admin dan aslab
-- ⚙️ **Admin Panel** - Manajemen pengguna dan sistem via Flask-Admin
-- 🧹 **Auto Cleanup** - Pembersihan otomatis file temporary setiap hari
+| Fitur | Deskripsi |
+|-------|-----------|
+| 📄 **Upload PDF Massal** | Unggah hingga 50 file PDF laporan mahasiswa sekaligus |
+| 🔑 **Kunci Jawaban Opsional** | Gunakan PDF referensi sebagai acuan penilaian |
+| 🤖 **Penilaian AI** | Google Gemini 2.5 Flash untuk analisis dan penilaian |
+| 📊 **Export CSV** | Hasil penilaian dalam format CSV (No, NIM, Nama, Skor, Evaluasi) |
+| 🔄 **Round-Robin API** | Rotasi 15 API key untuk menghindari rate limit |
+| 🖥️ **GPU Support** | Akselerasi GPU untuk parsing PDF dengan Docling + EasyOCR |
+| 🔒 **Sistem Login** | Autentikasi pengguna dengan role admin dan aslab |
+| ⚙️ **Admin Panel** | Manajemen pengguna dan sistem via Flask-Admin |
+| 🧹 **Auto Cleanup** | Pembersihan otomatis file temporary setiap hari |
+| 📱 **Responsive UI** | Antarmuka modern yang responsif di semua perangkat |
+
+---
+
+## 🛠️ Teknologi
+
+| Komponen | Teknologi |
+|----------|-----------|
+| Backend | Flask 3.0+, SQLAlchemy, Flask-Login, Flask-Admin |
+| PDF Parser | Docling (IBM), EasyOCR |
+| AI/LLM | Google Gemini 2.5 Flash |
+| Database | SQLite3 |
+| Frontend | Bootstrap 5, Dropzone.js |
+| Deployment | Docker (GPU/CPU), Gunicorn |
 
 ---
 
@@ -307,3 +350,10 @@ Jl. A. Yani, Pabelan, Kartasura, Sukoharjo 57162
 ---
 
 *Dibuat dengan ❤️ untuk kemajuan pendidikan*
+
+---
+
+<p align="center">
+  <strong>AutoScoring v1.0</strong><br>
+  © 2025 Lab FKI Universitas Muhammadiyah Surakarta
+</p>
