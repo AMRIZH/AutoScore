@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const answerKeyUploadZone = document.getElementById('answerKeyUploadZone');
     const answerKeyFile = document.getElementById('answerKeyFile');
     const answerKeyFileName = document.getElementById('answerKeyFileName');
+    const questionDocUploadZone = document.getElementById('questionDocUploadZone');
+    const questionDocFiles = document.getElementById('questionDocFiles');
+    const questionDocFileList = document.getElementById('questionDocFileList');
+    const additionalNotes = document.getElementById('additionalNotes');
     const submitBtn = document.getElementById('submitBtn');
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
@@ -23,6 +27,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Store selected files
     let selectedStudentFiles = [];
+    let selectedQuestionDocs = [];
+
+    // Allowed extensions for question documents
+    const questionDocExtensions = [
+        'pdf', 'doc', 'docx',
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif',
+        'tiff', 'tif', 'svg', 'ico', 'raw', 'cr2', 'nef', 'arw'
+    ];
 
     // Student files upload zone
     studentUploadZone.addEventListener('click', () => studentFiles.click());
@@ -37,6 +49,15 @@ document.addEventListener('DOMContentLoaded', function() {
     answerKeyUploadZone.addEventListener('dragleave', handleDragLeave);
     answerKeyUploadZone.addEventListener('drop', handleAnswerKeyDrop);
     answerKeyFile.addEventListener('change', handleAnswerKeySelect);
+
+    // Question document upload zone
+    if (questionDocUploadZone && questionDocFiles) {
+        questionDocUploadZone.addEventListener('click', () => questionDocFiles.click());
+        questionDocUploadZone.addEventListener('dragover', handleDragOver);
+        questionDocUploadZone.addEventListener('dragleave', handleDragLeave);
+        questionDocUploadZone.addEventListener('drop', handleQuestionDocDrop);
+        questionDocFiles.addEventListener('change', handleQuestionDocSelect);
+    }
 
     // Form submission
     uploadForm.addEventListener('submit', handleFormSubmit);
@@ -79,6 +100,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function handleQuestionDocDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files).filter(f => isAllowedQuestionDoc(f));
+        if (files.length > 0) {
+            addQuestionDocs(files);
+        }
+    }
+
+    // Check if file is allowed for question documents
+    function isAllowedQuestionDoc(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        return questionDocExtensions.includes(ext);
+    }
+
     // File selection handlers
     function handleStudentFileSelect(e) {
         const files = Array.from(e.target.files);
@@ -89,6 +127,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.files.length > 0) {
             setAnswerKeyFile(e.target.files[0]);
         }
+    }
+
+    function handleQuestionDocSelect(e) {
+        const files = Array.from(e.target.files);
+        addQuestionDocs(files);
     }
 
     // Add student files to list
@@ -102,6 +145,27 @@ document.addEventListener('DOMContentLoaded', function() {
         
         updateStudentFileList();
         updateUploadZoneState();
+    }
+
+    // Add question document files to list
+    function addQuestionDocs(files) {
+        // Limit to 10 files
+        const remainingSlots = 10 - selectedQuestionDocs.length;
+        const filesToAdd = files.slice(0, remainingSlots);
+        
+        filesToAdd.forEach(file => {
+            // Check if already added
+            if (!selectedQuestionDocs.some(f => f.name === file.name && f.size === file.size)) {
+                selectedQuestionDocs.push(file);
+            }
+        });
+        
+        if (files.length > remainingSlots) {
+            alert(`Hanya ${remainingSlots} file yang dapat ditambahkan. Maksimal 10 file dokumen soal.`);
+        }
+        
+        updateQuestionDocFileList();
+        updateQuestionDocUploadZoneState();
     }
 
     // Update student file list display
@@ -120,24 +184,96 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedStudentFiles.forEach((file, index) => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
-            fileItem.innerHTML = `
-                <span class="file-name" title="${file.name}">
-                    <i class="bi bi-file-earmark-pdf text-danger me-2"></i>${file.name}
-                </span>
-                <span class="remove-file" data-index="${index}" title="Hapus">
-                    <i class="bi bi-x-circle"></i>
-                </span>
-            `;
+            
+            // Safe DOM construction (no innerHTML with user data)
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.className = 'file-name';
+            fileNameSpan.title = file.name;
+            
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-file-earmark-pdf text-danger me-2';
+            fileNameSpan.appendChild(icon);
+            fileNameSpan.appendChild(document.createTextNode(file.name));
+            
+            const removeSpan = document.createElement('span');
+            removeSpan.className = 'remove-file';
+            removeSpan.dataset.index = index;
+            removeSpan.title = 'Hapus';
+            
+            const removeIcon = document.createElement('i');
+            removeIcon.className = 'bi bi-x-circle';
+            removeSpan.appendChild(removeIcon);
+            
+            fileItem.appendChild(fileNameSpan);
+            fileItem.appendChild(removeSpan);
             studentFileList.appendChild(fileItem);
         });
 
         // Add remove file handlers
-        document.querySelectorAll('.remove-file').forEach(btn => {
+        document.querySelectorAll('#studentFileList .remove-file').forEach(btn => {
             btn.addEventListener('click', function() {
                 const index = parseInt(this.dataset.index);
                 selectedStudentFiles.splice(index, 1);
                 updateStudentFileList();
                 updateUploadZoneState();
+            });
+        });
+    }
+
+    // Update question document file list display
+    function updateQuestionDocFileList() {
+        if (!questionDocFileList) return;
+        
+        questionDocFileList.innerHTML = '';
+        
+        if (selectedQuestionDocs.length === 0) {
+            return;
+        }
+
+        const countBadge = document.createElement('div');
+        countBadge.className = 'mb-2';
+        countBadge.innerHTML = `<span class="badge bg-info">${selectedQuestionDocs.length}/10 file dokumen soal</span>`;
+        questionDocFileList.appendChild(countBadge);
+
+        selectedQuestionDocs.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            const ext = file.name.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif'].includes(ext);
+            const iconClass = isImage ? 'bi-file-earmark-image text-success' : 
+                         (ext === 'pdf' ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-word text-primary');
+            
+            // Safe DOM construction (no innerHTML with user data)
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.className = 'file-name';
+            fileNameSpan.title = file.name;
+            
+            const icon = document.createElement('i');
+            icon.className = `bi ${iconClass} me-2`;
+            fileNameSpan.appendChild(icon);
+            fileNameSpan.appendChild(document.createTextNode(file.name));
+            
+            const removeSpan = document.createElement('span');
+            removeSpan.className = 'remove-question-doc';
+            removeSpan.dataset.index = index;
+            removeSpan.title = 'Hapus';
+            
+            const removeIcon = document.createElement('i');
+            removeIcon.className = 'bi bi-x-circle';
+            removeSpan.appendChild(removeIcon);
+            
+            fileItem.appendChild(fileNameSpan);
+            fileItem.appendChild(removeSpan);
+            questionDocFileList.appendChild(fileItem);
+        });
+
+        // Add remove file handlers
+        document.querySelectorAll('#questionDocFileList .remove-question-doc').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.dataset.index);
+                selectedQuestionDocs.splice(index, 1);
+                updateQuestionDocFileList();
+                updateQuestionDocUploadZoneState();
             });
         });
     }
@@ -151,18 +287,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Update question doc upload zone appearance
+    function updateQuestionDocUploadZoneState() {
+        if (!questionDocUploadZone) return;
+        
+        if (selectedQuestionDocs.length > 0) {
+            questionDocUploadZone.classList.add('has-files');
+        } else {
+            questionDocUploadZone.classList.remove('has-files');
+        }
+    }
+
     // Set answer key file
     function setAnswerKeyFile(file) {
-        answerKeyFileName.innerHTML = `
-            <div class="file-item">
-                <span class="file-name" title="${file.name}">
-                    <i class="bi bi-file-earmark-check text-success me-2"></i>${file.name}
-                </span>
-                <span class="remove-answer-key" title="Hapus">
-                    <i class="bi bi-x-circle"></i>
-                </span>
-            </div>
-        `;
+        // Safe DOM construction (no innerHTML with user data)
+        answerKeyFileName.innerHTML = '';
+        
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        
+        const fileNameSpan = document.createElement('span');
+        fileNameSpan.className = 'file-name';
+        fileNameSpan.title = file.name;
+        
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-file-earmark-check text-success me-2';
+        fileNameSpan.appendChild(icon);
+        fileNameSpan.appendChild(document.createTextNode(file.name));
+        
+        const removeSpan = document.createElement('span');
+        removeSpan.className = 'remove-answer-key';
+        removeSpan.title = 'Hapus';
+        
+        const removeIcon = document.createElement('i');
+        removeIcon.className = 'bi bi-x-circle';
+        removeSpan.appendChild(removeIcon);
+        
+        fileItem.appendChild(fileNameSpan);
+        fileItem.appendChild(removeSpan);
+        answerKeyFileName.appendChild(fileItem);
+        
         answerKeyUploadZone.classList.add('has-files');
 
         // Add remove handler
@@ -206,6 +370,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add answer key if selected
         if (answerKeyFile.files.length > 0) {
             formData.append('answer_key', answerKeyFile.files[0]);
+        }
+
+        // Add question documents if selected
+        selectedQuestionDocs.forEach(file => {
+            formData.append('question_documents', file);
+        });
+
+        // Add additional notes if provided
+        if (additionalNotes && additionalNotes.value.trim()) {
+            formData.append('additional_notes', additionalNotes.value.trim());
         }
 
         // Disable form and show progress
@@ -348,6 +522,8 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = disabled;
         studentFiles.disabled = disabled;
         answerKeyFile.disabled = disabled;
+        if (questionDocFiles) questionDocFiles.disabled = disabled;
+        if (additionalNotes) additionalNotes.disabled = disabled;
         document.getElementById('scoreMin').disabled = disabled;
         document.getElementById('scoreMax').disabled = disabled;
         document.getElementById('enableEvaluation').disabled = disabled;
@@ -356,10 +532,12 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
             studentUploadZone.style.pointerEvents = 'none';
             answerKeyUploadZone.style.pointerEvents = 'none';
+            if (questionDocUploadZone) questionDocUploadZone.style.pointerEvents = 'none';
         } else {
             submitBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>Mulai Penilaian';
             studentUploadZone.style.pointerEvents = 'auto';
             answerKeyUploadZone.style.pointerEvents = 'auto';
+            if (questionDocUploadZone) questionDocUploadZone.style.pointerEvents = 'auto';
         }
     }
 
@@ -367,14 +545,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function resetForm() {
         // Clear selected files
         selectedStudentFiles = [];
+        selectedQuestionDocs = [];
         studentFiles.value = '';
         answerKeyFile.value = '';
+        if (questionDocFiles) questionDocFiles.value = '';
+        if (additionalNotes) additionalNotes.value = '';
         
         // Clear displays
         studentFileList.innerHTML = '';
         answerKeyFileName.innerHTML = '';
+        if (questionDocFileList) questionDocFileList.innerHTML = '';
         studentUploadZone.classList.remove('has-files');
         answerKeyUploadZone.classList.remove('has-files');
+        if (questionDocUploadZone) questionDocUploadZone.classList.remove('has-files');
         
         // Hide result
         resultContainer.classList.remove('active');

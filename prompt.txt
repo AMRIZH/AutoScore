@@ -6,11 +6,32 @@ This is an internal academic tool, not a public SaaS.
 
 the inputs for the LLM are 
 1. 1 pdf file as 'kunci jawaban' (example of 100% score result | optional)
+   - Formats: PDF only
+   - Max size: 50 MB
+   - Supplements question documents; provides canonical answers for scoring reference
 2. Multiple PDF file from students to be scored 
-  up to 50 students (default max 50 PDF ; configurable from .env)
+   - up to 50 students (default max 50 PDF ; configurable from .env)
+   - Formats: PDF only
+   - Max size: 50 MB per file
 3. system prompt (hidden from users ; defined by system)
 4. additional parameters 
   - score range (default 40-100 ; configurable from dashboard)
+  - additional notes for scoring guideline (max 2000 characters)
+    * Input validation: sanitize before passing to LLM to neutralize prompt-injection vectors
+    * Conflicting instructions policy: system prompt > instructor notes > student input
+    * Ambiguous/unclear directives should be ignored and logged
+    example= "question number 5 is bonus, mark all as correct", "this question is too hard for student, be kind when giving score"
+    "in question 4, if the student mention at least 5 just make it correct", etc.
+5. Question/exam/task documents (OPTIONAL)
+   - Formats: PDF, DOCX, or images (JPG, PNG, GIF, BMP, WEBP, TIFF, HEIC)
+   - Max: 10 files, 20 MB per file
+   - Processing: All documents are OCRed/converted to plain text via Docling before being passed to LLM
+   - Integration logic: 
+     * Merge question text and answer key into single prompt context
+     * Answer key provides canonical answers; question documents provide context, examples, and question numbering
+     * Metadata preserved: source filename, page/section mapping for traceability
+   - Error handling: If OCR/conversion fails, log error with filename and skip that document (do not fail entire job)
+   - Functions to implement: convertDocumentToText(), ocrImage(), chunkTextForLLM(), buildScoringPrompt()
   
 the output is a csv file with naming username_timestamp.csv
 contain these entries:
@@ -49,7 +70,18 @@ additional requirements
 - all uploaded documents will be deleted at every start of application or at time 02.00 AM WIB every night (can be disabled on .env)
   so i can keep the running app lightweight
 - write the .env.example ;  complete README & gitignore ;  'pipfreeze > requirements.txt' to generate requirements list
-- only accept pdf format uploaded file (add file type validation)
+- File Upload Validation & Security:
+  * Student submissions: PDF only (max 50 MB per file)
+  * Answer key: PDF only (max 50 MB)
+  * Question documents: PDF, DOCX, JPG, PNG, GIF, BMP, WEBP, TIFF, HEIC (max 20 MB per file, max 10 files)
+  * Validation requirements:
+    - MIME-type and extension checks must match
+    - Verify file signatures (magic bytes) to prevent spoofed uploads
+    - Reject DOCX with macros (or strip macros server-side)
+    - SVG files NOT allowed (XSS risk)
+    - RAW camera formats (CR2, NEF, ARW) NOT allowed unless sanitized
+    - Images: normalize/resize to prevent decompression bombs
+  * Recommended: integrate antivirus/virus-scan on all uploads
 - keep the web design simple and intuitive.
 - save app logs
   Login attempts, Upload actions, LLM errors, GPU/CPU mode,Cleanup events, etc.

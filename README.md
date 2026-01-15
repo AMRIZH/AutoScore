@@ -47,12 +47,15 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 |-------|-----------|
 | 📄 **Upload PDF Massal** | Unggah hingga 50 file PDF laporan mahasiswa sekaligus |
 | 🔑 **Kunci Jawaban Opsional** | Gunakan PDF referensi sebagai acuan penilaian |
+| 📝 **Dokumen Soal/Tugas** | Upload dokumen soal (PDF, DOCX, gambar) hingga 10 file dengan OCR |
+| 💬 **Catatan Tambahan** | Instruksi khusus untuk panduan penilaian LLM |
 | 🤖 **Penilaian AI** | Google Gemini 2.5 Flash untuk analisis dan penilaian |
 | 📊 **Export CSV** | Hasil penilaian dalam format CSV (No, NIM, Nama, Skor, Evaluasi) |
-| 🔄 **Round-Robin API** | Rotasi 15 API key untuk menghindari rate limit |
+| 🔄 **Round-Robin API** | Rotasi 20 API key untuk menghindari rate limit |
 | 🖥️ **GPU Support** | Akselerasi GPU untuk parsing PDF dengan Docling + EasyOCR |
 | 🔒 **Sistem Login** | Autentikasi pengguna dengan role admin dan aslab |
-| ⚙️ **Admin Panel** | Manajemen pengguna dan sistem via Flask-Admin |
+| ⚙️ **Admin Panel** | Manajemen pengguna, statistik, dan pengaturan runtime |
+| 🎛️ **Runtime Settings** | Ubah konfigurasi sistem tanpa restart aplikasi |
 | 🧹 **Auto Cleanup** | Pembersihan otomatis file temporary setiap hari |
 | 📱 **Responsive UI** | Antarmuka modern yang responsif di semua perangkat |
 
@@ -174,7 +177,7 @@ docker-compose -f docker-compose.cpu.yml up -d
    ```
    GEMINI_API_KEY_1=your-api-key-here
    GEMINI_API_KEY_2=your-second-api-key
-   # ... hingga 15 key untuk round-robin
+   # ... hingga 20 key untuk round-robin
    ```
 
 ### Konfigurasi Lengkap (.env)
@@ -182,12 +185,15 @@ docker-compose -f docker-compose.cpu.yml up -d
 | Variable | Default | Deskripsi |
 |----------|---------|-----------|
 | `SECRET_KEY` | - | Secret key Flask (wajib diganti) |
+| `MAX_FILE_SIZE_MB` | 10 | Maksimal ukuran file upload (MB) |
 | `MAX_PDF_COUNT` | 50 | Maksimal file PDF per job |
 | `MAX_WORKERS` | 4 | Jumlah worker parallel |
 | `ENABLE_OCR` | true | Aktifkan OCR untuk PDF scan |
 | `ENABLE_CLEANUP` | true | Pembersihan otomatis file |
 | `DEFAULT_SCORE_MIN` | 40 | Nilai minimum default |
 | `DEFAULT_SCORE_MAX` | 100 | Nilai maksimum default |
+
+> 💡 **Tip:** `MAX_FILE_SIZE_MB`, `MAX_PDF_COUNT`, `ENABLE_OCR`, dan `ENABLE_CLEANUP` dapat diubah saat runtime melalui Admin Panel → Pengaturan
 
 ---
 
@@ -196,9 +202,16 @@ docker-compose -f docker-compose.cpu.yml up -d
 | Username | Password | Role |
 |----------|----------|------|
 | admin | informatika | Admin |
-| aslab | informatika1 | Asisten Lab |
 
-> ⚠️ **Penting:** Segera ganti password default setelah instalasi!
+Kredensial admin dapat dikonfigurasi di file `.env`:
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password
+```
+
+> ⚠️ **Penting:** Segera ganti password default setelah instalasi melalui Admin Panel!
+
+> 💡 **Tip:** Untuk menambahkan pengguna baru (asisten lab), gunakan Admin Panel → Pengguna → Create
 
 ---
 
@@ -212,7 +225,9 @@ docker-compose -f docker-compose.cpu.yml up -d
 ### 2. Upload Laporan
 - Di dashboard, klik area upload atau drag-drop file PDF
 - Pilih semua file PDF laporan mahasiswa (maks. 50 file)
-- (Opsional) Upload kunci jawaban sebagai referensi
+- (Opsional) Upload kunci jawaban sebagai referensi PDF
+- (Opsional) Upload dokumen soal/tugas (PDF, DOCX, atau gambar hingga 10 file)
+- (Opsional) Tambahkan catatan khusus untuk panduan penilaian
 
 ### 3. Konfigurasi Penilaian
 - Atur rentang nilai (min-max)
@@ -267,11 +282,18 @@ autoscoring/
 Akses admin panel di: `http://localhost:5000/admin`
 
 Fitur admin:
-- Manajemen pengguna (CRUD)
-- Lihat riwayat pekerjaan
-- Lihat hasil penilaian
-- Log sistem
-- Informasi sistem (GPU/CPU mode)
+- **Dashboard** - Statistik sistem (total pengguna, jobs, status)
+- **Manajemen Pengguna** - CRUD pengguna dengan role admin/aslab
+- **Riwayat Pekerjaan** - Lihat semua job penilaian
+- **Hasil Penilaian** - Telusuri hasil per mahasiswa
+- **Log Sistem** - Audit trail aktivitas sistem
+- **Pengaturan Runtime** - Ubah konfigurasi tanpa restart:
+  - Max File Size (MB)
+  - Max PDF Count
+  - Enable/Disable OCR
+  - Enable/Disable Auto Cleanup
+
+> 💡 **Tip:** Pengaturan runtime berlaku langsung tanpa restart. Untuk pengaturan permanen, edit file `.env`
 
 ---
 
@@ -355,6 +377,6 @@ Jl. A. Yani, Pabelan, Kartasura, Sukoharjo 57162
 ---
 
 <p align="center">
-  <strong>AutoScoring v1.0</strong><br>
-  © 2025 Lab FKI Universitas Muhammadiyah Surakarta
+  <strong>AutoScoring v1.1</strong><br>
+  © 2026 Lab FKI Universitas Muhammadiyah Surakarta
 </p>

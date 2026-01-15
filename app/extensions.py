@@ -17,8 +17,8 @@ login_manager = LoginManager()
 # CSRF protection
 csrf = CSRFProtect()
 
-# Admin panel
-admin = Admin(name='AutoScoring Admin')
+# Admin panel - will be fully configured in setup_admin()
+admin = None
 
 # Scheduler for cleanup tasks
 scheduler = BackgroundScheduler(

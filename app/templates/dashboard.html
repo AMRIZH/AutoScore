@@ -99,6 +99,42 @@
                         <div id="answerKeyFileName" class="mt-2"></div>
                     </div>
                     
+                    <!-- Question/Task Document Upload (Optional) -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-earmark-text me-1"></i>Dokumen Soal/Tugas
+                            <span class="badge bg-secondary">Opsional</span>
+                        </label>
+                        <div class="upload-zone" id="questionDocUploadZone">
+                            <i class="bi bi-file-earmark-richtext display-5 text-muted"></i>
+                            <p class="mt-2 mb-1">Seret file dokumen soal ke sini atau klik untuk memilih</p>
+                            <small class="text-muted">PDF, DOCX, atau gambar (JPG, PNG, WEBP, dll.) - Maks. 10 file</small>
+                            <input type="file" 
+                                   id="questionDocFiles" 
+                                   name="question_documents" 
+                                   multiple 
+                                   accept=".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                                   class="d-none">
+                        </div>
+                        <div class="file-list mt-2" id="questionDocFileList"></div>
+                    </div>
+                    
+                    <!-- Additional Scoring Notes (Optional) -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-journal-text me-1"></i>Catatan Tambahan untuk Penilaian
+                            <span class="badge bg-secondary">Opsional</span>
+                        </label>
+                        <textarea class="form-control" 
+                                  id="additionalNotes" 
+                                  name="additional_notes" 
+                                  rows="3" 
+                                  placeholder="Contoh: &#10;- Soal nomor 5 adalah bonus&#10;- Toleransi perbedaan hasil ±0.5&#10;- Fokus penilaian pada analisis data&#10;- Abaikan format penulisan"></textarea>
+                        <small class="text-muted">
+                            Tambahkan catatan khusus yang akan membantu LLM dalam memberikan penilaian yang lebih akurat
+                        </small>
+                    </div>
+                    
                     <!-- Score Range -->
                     <div class="row mb-4">
                         <div class="col-md-6">
@@ -261,6 +297,8 @@
                 <ol class="ps-3 mb-0">
                     <li class="mb-2">Unggah file PDF laporan mahasiswa</li>
                     <li class="mb-2">Unggah kunci jawaban (opsional)</li>
+                    <li class="mb-2">Unggah dokumen soal/tugas (opsional)</li>
+                    <li class="mb-2">Tambahkan catatan khusus jika perlu</li>
                     <li class="mb-2">Atur rentang nilai yang diinginkan</li>
                     <li class="mb-2">Klik "Mulai Penilaian"</li>
                     <li class="mb-2">Tunggu hingga proses selesai</li>

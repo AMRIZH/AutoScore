@@ -151,6 +151,33 @@ class ScoringService:
                 else:
                     logger.info(f"[INFO] Job {job_id}: Tidak ada kunci jawaban yang disediakan")
                 
+                # Parse question documents if provided
+                question_content = None
+                if job.question_doc_paths:
+                    import json as json_module
+                    try:
+                        question_paths = json_module.loads(job.question_doc_paths)
+                        if question_paths:
+                            logger.info(f"[INFO] Membaca {len(question_paths)} dokumen soal/tugas")
+                            
+                            question_start = time.time()
+                            question_content = self.docling_service.parse_multiple_documents(question_paths)
+                            question_time = time.time() - question_start
+                            
+                            if question_content:
+                                logger.info(f"[OK] Dokumen soal berhasil dibaca ({len(question_content)} chars) dalam {question_time:.2f}s")
+                            else:
+                                logger.warning(f"[WARN] Gagal membaca dokumen soal untuk job {job_id}")
+                    except json_module.JSONDecodeError as e:
+                        logger.error(f"[ERROR] Gagal parsing question_doc_paths JSON: {e}")
+                else:
+                    logger.info(f"[INFO] Job {job_id}: Tidak ada dokumen soal yang disediakan")
+                
+                # Get additional notes
+                additional_notes = job.additional_notes
+                if additional_notes:
+                    logger.info(f"[INFO] Job {job_id}: Catatan tambahan ditemukan ({len(additional_notes)} chars)")
+                
                 # Process student files with ThreadPoolExecutor
                 results = []
                 processed_count = 0
@@ -169,6 +196,8 @@ class ScoringService:
                             self._process_single_file,
                             file_info,
                             answer_key_content,
+                            question_content,
+                            additional_notes,
                             job.score_min,
                             job.score_max,
                             job.enable_evaluation
@@ -308,6 +337,8 @@ class ScoringService:
         self,
         file_info: Dict,
         answer_key_content: Optional[str],
+        question_content: Optional[str],
+        additional_notes: Optional[str],
         score_min: int,
         score_max: int,
         enable_evaluation: bool
@@ -360,6 +391,8 @@ class ScoringService:
         result = self.gemini_service.score_report(
             student_content=student_content,
             answer_key_content=answer_key_content,
+            question_content=question_content,
+            additional_notes=additional_notes,
             score_min=score_min,
             score_max=score_max,
             enable_evaluation=enable_evaluation

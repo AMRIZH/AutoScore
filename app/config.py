@@ -45,9 +45,9 @@ class Config:
     # CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*')
     
-    # Gemini API keys (up to 15)
+    # Gemini API keys (up to 20)
     GEMINI_API_KEYS = []
-    for i in range(1, 16):
+    for i in range(1, 21):
         key = os.environ.get(f'GEMINI_API_KEY_{i}') or os.environ.get(f'gemini_api_key_{i}')
         if key:
             GEMINI_API_KEYS.append(key)

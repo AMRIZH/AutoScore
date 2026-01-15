@@ -62,8 +62,12 @@ class Job(db.Model):
     
     # Files
     answer_key_path = db.Column(db.String(500), nullable=True)
+    question_doc_paths = db.Column(db.Text, nullable=True)  # JSON array of paths
     total_files = db.Column(db.Integer, default=0)
     processed_files = db.Column(db.Integer, default=0)
+    
+    # Additional notes for scoring
+    additional_notes = db.Column(db.Text, nullable=True)
     
     # Status: 'pending', 'processing', 'completed', 'failed'
     status = db.Column(db.String(20), default='pending')

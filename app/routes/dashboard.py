@@ -5,6 +5,8 @@ Dashboard routes for AutoScoring application.
 import os
 import json
 import uuid
+import zipfile
+import io
 from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, current_app, Response, send_file
 from flask_login import login_required, current_user
@@ -24,6 +26,111 @@ def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+
+
+# Allowed extensions for question documents (PDF, DOCX, images)
+# NOTE: SVG removed due to XSS risk (requires server-side sanitization if needed)
+# NOTE: RAW camera formats (cr2, nef, arw) removed - not commonly used for exam docs
+QUESTION_DOC_EXTENSIONS = {
+    'pdf', 'doc', 'docx',
+    # Images (common raster formats only)
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 
+    'tiff', 'tif'
+}
+
+# MIME types for question documents validation
+QUESTION_DOC_MIME_TYPES = {
+    # Documents
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    # Images
+    'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+    'image/heic', 'image/heif', 'image/tiff',
+}
+
+# Magic bytes signatures for file validation
+FILE_SIGNATURES = {
+    'pdf': b'%PDF-',
+    'jpg': b'\xff\xd8\xff',
+    'png': b'\x89PNG\r\n\x1a\n',
+    'gif': (b'GIF87a', b'GIF89a'),
+    'bmp': b'BM',
+    'tiff': (b'II\x2a\x00', b'MM\x00\x2a'),
+    'webp': b'RIFF',  # followed by size and WEBP
+    'zip': b'PK\x03\x04',  # Generic ZIP signature
+    'doc': b'\xd0\xcf\x11\xe0',  # OLE2 format
+}
+
+# HEIC/HEIF brand codes (ISO Base Media File Format)
+# These distinguish HEIC from MP4, MOV, M4A etc.
+HEIC_HEIF_BRANDS = {
+    b'heic', b'heix', b'hevc', b'hevx',  # HEIC brands
+    b'heif', b'heim', b'heis', b'hevs',  # HEIF brands  
+    b'mif1', b'msf1',  # MIAF brands
+}
+
+
+def is_valid_docx(file_content: bytes) -> bool:
+    """
+    Validate DOCX by checking internal ZIP structure for Office Open XML markers.
+    Returns True only if it's a genuine Word document, not just any ZIP file.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_content), 'r') as zf:
+            namelist = zf.namelist()
+            # DOCX must have [Content_Types].xml at root
+            if '[Content_Types].xml' not in namelist:
+                return False
+            # DOCX must have word/ directory with document.xml
+            if 'word/document.xml' not in namelist:
+                return False
+            # Verify Content_Types contains Word-specific content type
+            try:
+                content_types = zf.read('[Content_Types].xml').decode('utf-8', errors='ignore')
+                if 'application/vnd.openxmlformats-officedocument.wordprocessingml' not in content_types:
+                    return False
+            except:
+                return False
+            return True
+    except (zipfile.BadZipFile, Exception):
+        return False
+
+
+def is_valid_heic_heif(header: bytes) -> bool:
+    """
+    Validate HEIC/HEIF by checking for proper ftyp box with HEIC/HEIF brand codes.
+    Prevents false positives from MP4, MOV, M4A which also use ftyp.
+    """
+    # ISO Base Media File Format: first 4 bytes = box size, next 4 bytes = 'ftyp'
+    if len(header) < 12:
+        return False
+    
+    # Check for ftyp box marker at bytes 4-7
+    if header[4:8] != b'ftyp':
+        return False
+    
+    # Major brand is at bytes 8-12
+    major_brand = header[8:12]
+    if major_brand in HEIC_HEIF_BRANDS:
+        return True
+    
+    # Also check compatible brands (after major brand and version)
+    # Compatible brands start at byte 16 and continue in 4-byte chunks
+    if len(header) >= 20:
+        for i in range(16, min(len(header), 64), 4):
+            if i + 4 <= len(header):
+                brand = header[i:i+4]
+                if brand in HEIC_HEIF_BRANDS:
+                    return True
+    
+    return False
+
+
+def allowed_question_doc(filename):
+    """Check if file extension is allowed for question documents."""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in QUESTION_DOC_EXTENSIONS
 
 
 def validate_pdf(file):
@@ -54,6 +161,81 @@ def validate_pdf(file):
     return errors
 
 
+def validate_question_doc(file):
+    """Validate question document file (PDF, DOCX, or image) with MIME and magic byte checks."""
+    errors = []
+    
+    # Check filename extension
+    if not file.filename:
+        errors.append('Nama file tidak valid.')
+        return errors
+    
+    if not allowed_question_doc(file.filename):
+        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'unknown'
+        errors.append(f'File {file.filename} memiliki ekstensi tidak didukung: .{ext}')
+        return errors
+    
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    
+    # Check MIME type
+    mime_type = file.content_type or file.mimetype
+    # Allow generic image/* for images, or check specific MIME types
+    is_image_ext = ext in {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif'}
+    mime_valid = (
+        mime_type in QUESTION_DOC_MIME_TYPES or
+        (is_image_ext and mime_type and mime_type.startswith('image/'))
+    )
+    if not mime_valid and mime_type:
+        errors.append(f'File {file.filename} memiliki tipe MIME tidak valid: {mime_type}')
+    
+    # Check magic bytes (file signature)
+    file.seek(0)
+    header = file.read(64)  # Read more bytes for HEIC brand detection
+    file.seek(0)  # Reset file pointer
+    
+    signature_valid = False
+    
+    if ext == 'pdf':
+        signature_valid = header.startswith(FILE_SIGNATURES['pdf'])
+    elif ext in {'jpg', 'jpeg'}:
+        signature_valid = header.startswith(FILE_SIGNATURES['jpg'])
+    elif ext == 'png':
+        signature_valid = header.startswith(FILE_SIGNATURES['png'])
+    elif ext == 'gif':
+        signature_valid = header.startswith(FILE_SIGNATURES['gif'][0]) or header.startswith(FILE_SIGNATURES['gif'][1])
+    elif ext == 'bmp':
+        signature_valid = header.startswith(FILE_SIGNATURES['bmp'])
+    elif ext in {'tiff', 'tif'}:
+        signature_valid = header.startswith(FILE_SIGNATURES['tiff'][0]) or header.startswith(FILE_SIGNATURES['tiff'][1])
+    elif ext == 'webp':
+        signature_valid = header.startswith(FILE_SIGNATURES['webp']) and b'WEBP' in header[:12]
+    elif ext == 'docx':
+        # DOCX requires deep validation - check ZIP structure and Word-specific files
+        if header.startswith(FILE_SIGNATURES['zip']):
+            file.seek(0)
+            file_content = file.read()
+            file.seek(0)
+            signature_valid = is_valid_docx(file_content)
+        else:
+            signature_valid = False
+    elif ext == 'doc':
+        signature_valid = header.startswith(FILE_SIGNATURES['doc'])
+    elif ext in {'heic', 'heif'}:
+        # HEIC/HEIF requires proper brand validation to distinguish from MP4/MOV
+        signature_valid = is_valid_heic_heif(header)
+    else:
+        # Unknown extension - fail-safe: reject files without explicit signature handler
+        # This prevents bypassing validation if new extensions are added without signature checks
+        signature_valid = False
+        errors.append(f'File {file.filename} memiliki ekstensi (.{ext}) yang belum memiliki validasi signature.')
+        return errors
+    
+    if not signature_valid:
+        errors.append(f'File {file.filename} memiliki signature tidak valid (kemungkinan file corrupt atau format tidak sesuai).')
+    
+    return errors
+
+
 @dashboard_bp.route('/dashboard')
 @login_required
 def index():
@@ -79,6 +261,7 @@ def upload_files():
         score_min = int(request.form.get('score_min', current_app.config['DEFAULT_SCORE_MIN']))
         score_max = int(request.form.get('score_max', current_app.config['DEFAULT_SCORE_MAX']))
         enable_evaluation = request.form.get('enable_evaluation', 'true').lower() == 'true'
+        additional_notes = request.form.get('additional_notes', '').strip() or None
         
         # Validate score range
         if score_min >= score_max:
@@ -150,6 +333,62 @@ def upload_files():
             answer_key_path = os.path.join(job_folder, f"answer_key_{ak_filename}")
             answer_key_file.save(answer_key_path)
         
+        # Handle question documents (optional, up to 10 files)
+        question_doc_paths_list = []
+        question_files_raw = request.files.getlist('question_documents')
+        
+        # Filter out empty FileStorage entries
+        question_files = []
+        for qf in question_files_raw:
+            if qf and qf.filename and qf.filename.strip():
+                # Check if file has content
+                qf.seek(0, 2)  # Seek to end
+                size = qf.tell()
+                qf.seek(0)  # Reset to beginning
+                if size > 0:
+                    question_files.append(qf)
+        
+        if question_files:
+            # Check maximum 10 files (after filtering)
+            if len(question_files) > 10:
+                return jsonify({'success': False, 'error': 'Maksimal 10 file dokumen soal yang diperbolehkan.'}), 400
+            
+            # Validate all files first before creating folder
+            for qfile in question_files:
+                q_errors = validate_question_doc(qfile)
+                if q_errors:
+                    return jsonify({'success': False, 'error': f'Dokumen soal tidak valid: {" ".join(q_errors)}'}), 400
+            
+            # Create folder only after all validations pass
+            question_folder = os.path.join(job_folder, 'questions')
+            os.makedirs(question_folder, exist_ok=True)
+            
+            try:
+                for qfile in question_files:
+                    q_filename = secure_filename(qfile.filename)
+                    unique_q_filename = f"{uuid.uuid4().hex[:8]}_{q_filename}"
+                    q_filepath = os.path.join(question_folder, unique_q_filename)
+                    qfile.save(q_filepath)
+                    question_doc_paths_list.append(q_filepath)
+            except Exception as save_error:
+                # Cleanup already saved files on error
+                for saved_path in question_doc_paths_list:
+                    try:
+                        if os.path.exists(saved_path):
+                            os.remove(saved_path)
+                    except:
+                        pass
+                # Remove question folder if empty
+                try:
+                    if os.path.exists(question_folder) and not os.listdir(question_folder):
+                        os.rmdir(question_folder)
+                except:
+                    pass
+                return jsonify({'success': False, 'error': f'Gagal menyimpan dokumen soal: {str(save_error)}'}), 500
+        
+        # Convert question doc paths to JSON string for storage
+        question_doc_paths_json = json.dumps(question_doc_paths_list) if question_doc_paths_list else None
+        
         # Create job in database
         job = Job(
             user_id=current_user.id,
@@ -157,6 +396,8 @@ def upload_files():
             score_max=score_max,
             enable_evaluation=enable_evaluation,
             answer_key_path=answer_key_path,
+            question_doc_paths=question_doc_paths_json,
+            additional_notes=additional_notes,
             total_files=len(saved_files),
             status='pending'
         )

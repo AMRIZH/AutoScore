@@ -12,7 +12,7 @@ from flask import Flask
 from werkzeug.security import generate_password_hash
 
 from app.config import Config
-from app.extensions import db, login_manager, csrf, admin, scheduler
+from app.extensions import db, login_manager, csrf, scheduler
 
 
 def create_app(config_class=Config):
@@ -40,9 +40,9 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     
-    # Setup Flask-Admin
+    # Setup Flask-Admin (creates Admin instance with custom index view)
     from app.routes.admin_views import setup_admin
-    setup_admin(app, admin)
+    setup_admin(app)
     
     # Create database tables and seed data
     with app.app_context():
@@ -96,27 +96,29 @@ def setup_logging(app):
 
 
 def seed_default_users():
-    """Create default admin and aslab users if they don't exist."""
+    """Create default admin user only if no admin exists in database."""
     from app.models import User
     
-    # Check if users already exist
-    if User.query.filter_by(username='admin').first() is None:
-        admin_user = User(
-            username='admin',
-            password_hash=generate_password_hash('informatika'),
-            role='admin'
-        )
-        db.session.add(admin_user)
-        db.session.commit()
+    # Check if any admin user exists
+    existing_admin = User.query.filter_by(role='admin').first()
+    if existing_admin is not None:
+        return  # Admin already exists, don't create new one
     
-    if User.query.filter_by(username='aslab').first() is None:
-        aslab_user = User(
-            username='aslab',
-            password_hash=generate_password_hash('informatika1'),
-            role='aslab'
-        )
-        db.session.add(aslab_user)
-        db.session.commit()
+    # No admin exists, create one from environment variables
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_password = os.environ.get('ADMIN_PASSWORD')
+    
+    if not admin_password:
+        import logging
+        logging.warning('ADMIN_PASSWORD not set - using insecure default. Set ADMIN_PASSWORD environment variable for production.')
+        admin_password = 'informatika'    
+    admin_user = User(
+        username=admin_username,
+        password_hash=generate_password_hash(admin_password),
+        role='admin'
+    )
+    db.session.add(admin_user)
+    db.session.commit()
 
 
 def log_gpu_status(app):

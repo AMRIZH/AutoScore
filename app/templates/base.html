@@ -72,19 +72,57 @@
     </nav>
     {% endif %}
 
-    <!-- Flash Messages -->
-    <div class="container mt-3">
+    <!-- Toast Container (Floating) -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    {# Map category to Bootstrap class: error->danger, message->info #}
+                    {% set bg_class = 'danger' if category in ('error', 'danger') else ('info' if category == 'message' else category) %}
+                    <div class="toast align-items-center text-bg-{{ bg_class }} border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="5000">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' or category == 'error' %}exclamation-triangle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %} me-2"></i>
+                                {{ message }}
+                                <span class="toast-countdown ms-2 badge bg-dark" style="font-size: 0.75rem;"></span>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
     </div>
+    
+    <!-- Toast Auto-Show Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach(function(toastEl) {
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+                
+                // Countdown timer
+                const countdownEl = toastEl.querySelector('.toast-countdown');
+                if (countdownEl) {
+                    let seconds = 5;
+                    countdownEl.textContent = seconds + 's';
+                    const interval = setInterval(function() {
+                        seconds--;
+                        if (seconds > 0) {
+                            countdownEl.textContent = seconds + 's';
+                        } else {
+                            clearInterval(interval);
+                        }
+                    }, 1000);
+                    
+                    toastEl.addEventListener('hidden.bs.toast', function() {
+                        clearInterval(interval);
+                    });
+                }
+            });
+        });
+    </script>
 
     <!-- Main Content -->
     <main class="{% block main_class %}container py-4{% endblock %}">
@@ -96,7 +134,7 @@
         <div class="container text-center">
             <span class="text-muted">
                 <small>
-                    &copy; {{ now().year if now is defined else 2024 }} Lab FKI Universitas Muhammadiyah Surakarta
+                    &copy; {{ now().year if now is defined else 2026 }} Lab FKI Universitas Muhammadiyah Surakarta
                     <span class="mx-2">|</span>
                     Program Studi Informatika
                 </small>
