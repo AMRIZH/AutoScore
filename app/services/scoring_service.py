@@ -344,31 +344,76 @@ class ScoringService:
         enable_evaluation: bool
     ) -> Dict[str, Any]:
         """
-        Process a single student file.
+        Process a single student file or multiple files for single processing.
         
         Note: This runs in a worker thread, so NO database operations here!
         Return results to be processed in main thread.
         """
         filename = file_info['original_name']
-        filepath = file_info['path']
         thread_name = threading.current_thread().name
         
         start_time = time.time()
         logger.debug(f"[{thread_name}] [FILE] Memproses: {filename}")
         
-        # Step 1: Parse PDF with retry
-        parse_start = time.time()
-        logger.debug(f"[{thread_name}] [PARSE] Parsing PDF: {filename}")
+        # Check if this is single processing mode (multiple files per student)
+        is_single_processing = file_info.get('is_single_processing', False)
         
-        student_content = self.docling_service.parse_pdf_with_retry(
-            filepath,
-            max_retries=self.max_retries
-        )
+        parse_start = time.time()
+        student_content = None
+        
+        if is_single_processing:
+            # Single processing mode: parse multiple files and combine
+            file_paths = file_info.get('file_paths', [])
+            
+            if not file_paths:
+                error_msg = 'Tidak ada file untuk diproses'
+                logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg}")
+                return {
+                    'nim': file_info.get('nim', 'ERROR'),
+                    'student_name': file_info.get('name', 'ERROR'),
+                    'score': None,
+                    'evaluation': error_msg,
+                    'error': True,
+                    'parse_time': 0,
+                    'score_time': 0
+                }
+            
+            logger.debug(f"[{thread_name}] [PARSE] Parsing {len(file_paths)} files untuk {filename}")
+            
+            # Parse all files and combine content
+            combined_content = self.docling_service.parse_multiple_documents(file_paths)
+            
+            if combined_content:
+                student_content = combined_content
+                logger.debug(f"[{thread_name}] [OK] Combined content: {len(student_content)} chars")
+            else:
+                error_msg = f'Gagal membaca file-file jawaban'
+                parse_time = time.time() - parse_start
+                logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg} ({parse_time:.2f}s)")
+                
+                return {
+                    'nim': file_info.get('nim', 'ERROR'),
+                    'student_name': file_info.get('name', 'ERROR'),
+                    'score': None,
+                    'evaluation': error_msg,
+                    'error': True,
+                    'parse_time': parse_time,
+                    'score_time': 0
+                }
+        else:
+            # Bulk processing mode: single PDF file
+            filepath = file_info['path']
+            logger.debug(f"[{thread_name}] [PARSE] Parsing PDF: {filename}")
+            
+            student_content = self.docling_service.parse_pdf_with_retry(
+                filepath,
+                max_retries=self.max_retries
+            )
         
         parse_time = time.time() - parse_start
         
         if not student_content:
-            error_msg = f'Gagal membaca file PDF setelah {self.max_retries} percobaan'
+            error_msg = f'Gagal membaca file setelah {self.max_retries} percobaan'
             logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg} ({parse_time:.2f}s)")
             
             return {
@@ -382,7 +427,7 @@ class ScoringService:
             }
         
         content_length = len(student_content)
-        logger.debug(f"[{thread_name}] [OK] PDF parsed: {filename} ({content_length} chars, {parse_time:.2f}s)")
+        logger.debug(f"[{thread_name}] [OK] Content parsed: {filename} ({content_length} chars, {parse_time:.2f}s)")
         
         # Step 2: Score with LLM
         score_start = time.time()

@@ -143,6 +143,10 @@ def log_gpu_status(app):
 
 def setup_scheduler(app):
     """Setup APScheduler for cleanup tasks."""
+    # Skip scheduler in testing mode
+    if os.environ.get('FLASK_TESTING') or app.config.get('TESTING'):
+        return
+    
     from app.services.cleanup_service import scheduled_cleanup
     
     # Only start scheduler in main process (not reloader)

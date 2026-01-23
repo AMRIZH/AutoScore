@@ -12,29 +12,76 @@
         transition: all 0.3s ease;
         cursor: pointer;
     }
-    .upload-zone:hover, .upload-zone.dragover {
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
         border-color: #0d6efd;
         background-color: #f8f9fa;
     }
+
     .upload-zone.has-files {
         border-color: #198754;
         background-color: #d1e7dd;
     }
+
+    .upload-zone-sm {
+        padding: 1rem;
+    }
+
     .file-list {
         max-height: 200px;
         overflow-y: auto;
     }
+
     .progress-container {
         display: none;
     }
+
     .progress-container.active {
         display: block;
     }
+
     .result-container {
         display: none;
     }
+
     .result-container.active {
         display: block;
+    }
+
+    /* Single Processing Styles */
+    .student-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+
+    .student-row .file-list {
+        max-height: 100px;
+        font-size: 0.875rem;
+    }
+
+    .student-row .upload-zone {
+        padding: 0.75rem;
+        min-height: 60px;
+    }
+
+    .btn-remove-student {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        font-weight: 500;
+    }
+
+    .nav-tabs .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+
+    .nav-tabs .nav-link:not(.active):hover {
+        border-color: #dee2e6;
+        background-color: #f8f9fa;
     }
 </style>
 {% endblock %}
@@ -48,262 +95,465 @@
     </div>
 </div>
 
-<div class="row">
-    <!-- Upload Section -->
-    <div class="col-lg-8">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-cloud-upload me-2"></i>Unggah Laporan Mahasiswa
-                </h5>
-            </div>
-            <div class="card-body">
-                <form id="uploadForm" enctype="multipart/form-data">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    
-                    <!-- Student Files Upload -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-files me-1"></i>File Laporan Mahasiswa (PDF)
-                            <span class="text-danger">*</span>
-                        </label>
-                        <div class="upload-zone" id="studentUploadZone">
-                            <i class="bi bi-file-earmark-pdf display-4 text-muted"></i>
-                            <p class="mt-2 mb-1">Seret file PDF ke sini atau klik untuk memilih</p>
-                            <small class="text-muted">Maksimal {{ max_pdf_count }} file PDF</small>
-                            <input type="file" 
-                                   id="studentFiles" 
-                                   name="student_files" 
-                                   multiple 
-                                   accept=".pdf,application/pdf"
-                                   class="d-none">
-                        </div>
-                        <div class="file-list mt-2" id="studentFileList"></div>
-                    </div>
-                    
-                    <!-- Answer Key Upload (Optional) -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-file-earmark-check me-1"></i>Kunci Jawaban (PDF)
-                            <span class="badge bg-secondary">Opsional</span>
-                        </label>
-                        <div class="upload-zone" id="answerKeyUploadZone" style="padding: 1rem;">
-                            <i class="bi bi-file-earmark-pdf text-muted"></i>
-                            <span class="ms-2">Klik untuk memilih kunci jawaban</span>
-                            <input type="file" 
-                                   id="answerKeyFile" 
-                                   name="answer_key" 
-                                   accept=".pdf,application/pdf"
-                                   class="d-none">
-                        </div>
-                        <div id="answerKeyFileName" class="mt-2"></div>
-                    </div>
-                    
-                    <!-- Question/Task Document Upload (Optional) -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-file-earmark-text me-1"></i>Dokumen Soal/Tugas
-                            <span class="badge bg-secondary">Opsional</span>
-                        </label>
-                        <div class="upload-zone" id="questionDocUploadZone">
-                            <i class="bi bi-file-earmark-richtext display-5 text-muted"></i>
-                            <p class="mt-2 mb-1">Seret file dokumen soal ke sini atau klik untuk memilih</p>
-                            <small class="text-muted">PDF, DOCX, atau gambar (JPG, PNG, WEBP, dll.) - Maks. 10 file</small>
-                            <input type="file" 
-                                   id="questionDocFiles" 
-                                   name="question_documents" 
-                                   multiple 
-                                   accept=".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-                                   class="d-none">
-                        </div>
-                        <div class="file-list mt-2" id="questionDocFileList"></div>
-                    </div>
-                    
-                    <!-- Additional Scoring Notes (Optional) -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-journal-text me-1"></i>Catatan Tambahan untuk Penilaian
-                            <span class="badge bg-secondary">Opsional</span>
-                        </label>
-                        <textarea class="form-control" 
-                                  id="additionalNotes" 
-                                  name="additional_notes" 
-                                  rows="3" 
-                                  placeholder="Contoh: &#10;- Soal nomor 5 adalah bonus&#10;- Toleransi perbedaan hasil ±0.5&#10;- Fokus penilaian pada analisis data&#10;- Abaikan format penulisan"></textarea>
-                        <small class="text-muted">
-                            Tambahkan catatan khusus yang akan membantu LLM dalam memberikan penilaian yang lebih akurat
-                        </small>
-                    </div>
-                    
-                    <!-- Score Range -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <label for="scoreMin" class="form-label fw-bold">
-                                <i class="bi bi-arrow-down-circle me-1"></i>Nilai Minimum
-                            </label>
-                            <input type="number" 
-                                   class="form-control" 
-                                   id="scoreMin" 
-                                   name="score_min" 
-                                   value="{{ default_score_min }}"
-                                   min="0" 
-                                   max="99">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="scoreMax" class="form-label fw-bold">
-                                <i class="bi bi-arrow-up-circle me-1"></i>Nilai Maksimum
-                            </label>
-                            <input type="number" 
-                                   class="form-control" 
-                                   id="scoreMax" 
-                                   name="score_max" 
-                                   value="{{ default_score_max }}"
-                                   min="1" 
-                                   max="100">
-                        </div>
-                    </div>
-                    
-                    <!-- Enable Evaluation -->
-                    <div class="mb-4">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" 
-                                   type="checkbox" 
-                                   id="enableEvaluation" 
-                                   name="enable_evaluation"
-                                   checked>
-                            <label class="form-check-label fw-bold" for="enableEvaluation">
-                                <i class="bi bi-chat-left-text me-1"></i>Sertakan Evaluasi
-                            </label>
-                        </div>
-                        <small class="text-muted">
-                            Tambahkan penjelasan singkat untuk setiap nilai (maks. 100 kata)
-                        </small>
-                    </div>
-                    
-                    <!-- Submit Button -->
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                            <i class="bi bi-play-circle me-2"></i>Mulai Penilaian
-                        </button>
-                    </div>
-                </form>
-                
-                <!-- Progress Section -->
-                <div class="progress-container mt-4" id="progressContainer">
-                    <hr>
-                    <h6 class="mb-3">
-                        <i class="bi bi-hourglass-split me-2"></i>Proses Penilaian
-                    </h6>
-                    <div class="progress mb-2" style="height: 25px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" 
-                             id="progressBar"
-                             style="width: 0%">
-                            0%
-                        </div>
-                    </div>
-                    <p class="text-center mb-0" id="progressMessage">
-                        Mempersiapkan...
-                    </p>
-                </div>
-                
-                <!-- Result Section -->
-                <div class="result-container mt-4" id="resultContainer">
-                    <hr>
-                    <div class="alert alert-success" role="alert" id="resultAlert">
-                        <h5 class="alert-heading">
-                            <i class="bi bi-check-circle me-2"></i>Penilaian Selesai!
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" id="processingTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk-processing"
+            type="button" role="tab" aria-controls="bulk-processing" aria-selected="true">
+            <i class="bi bi-files me-2"></i>Penilaian Massal
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-processing" type="button"
+            role="tab" aria-controls="single-processing" aria-selected="false">
+            <i class="bi bi-person me-2"></i>Penilaian Per Mahasiswa
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="processingTabContent">
+    <!-- ==================== BULK PROCESSING TAB ==================== -->
+    <div class="tab-pane fade show active" id="bulk-processing" role="tabpanel" aria-labelledby="bulk-tab">
+        <div class="row">
+            <!-- Upload Section -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-cloud-upload me-2"></i>Unggah Laporan Mahasiswa
                         </h5>
-                        <p id="resultMessage">Semua laporan telah berhasil dinilai.</p>
-                        <hr>
-                        <div class="d-flex gap-2">
-                            <a href="#" class="btn btn-success" id="downloadBtn">
-                                <i class="bi bi-download me-2"></i>Unduh Hasil (CSV)
-                            </a>
-                            <button type="button" class="btn btn-outline-secondary" id="newScoringBtn">
-                                <i class="bi bi-plus-circle me-2"></i>Penilaian Baru
-                            </button>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <!-- Student Files Upload -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-files me-1"></i>File Laporan Mahasiswa (PDF)
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <div class="upload-zone" id="studentUploadZone">
+                                    <i class="bi bi-file-earmark-pdf display-4 text-muted"></i>
+                                    <p class="mt-2 mb-1">Seret file PDF ke sini atau klik untuk memilih</p>
+                                    <small class="text-muted">Maksimal {{ max_pdf_count }} file PDF</small>
+                                    <input type="file" id="studentFiles" name="student_files" multiple
+                                        accept=".pdf,application/pdf" class="d-none">
+                                </div>
+                                <div class="file-list mt-2" id="studentFileList"></div>
+                            </div>
+
+                            <!-- Answer Key Upload (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-earmark-check me-1"></i>Kunci Jawaban (PDF)
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <div class="upload-zone" id="answerKeyUploadZone" style="padding: 1rem;">
+                                    <i class="bi bi-file-earmark-pdf text-muted"></i>
+                                    <span class="ms-2">Klik untuk memilih kunci jawaban</span>
+                                    <input type="file" id="answerKeyFile" name="answer_key"
+                                        accept=".pdf,application/pdf" class="d-none">
+                                </div>
+                                <div id="answerKeyFileName" class="mt-2"></div>
+                            </div>
+
+                            <!-- Question/Task Document Upload (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-earmark-text me-1"></i>Dokumen Soal/Tugas
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <div class="upload-zone" id="questionDocUploadZone">
+                                    <i class="bi bi-file-earmark-richtext display-5 text-muted"></i>
+                                    <p class="mt-2 mb-1">Seret file dokumen soal ke sini atau klik untuk memilih</p>
+                                    <small class="text-muted">PDF, DOCX, atau gambar (JPG, PNG, WEBP, dll.) - Maks. 10
+                                        file</small>
+                                    <input type="file" id="questionDocFiles" name="question_documents" multiple
+                                        accept=".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                                        class="d-none">
+                                </div>
+                                <div class="file-list mt-2" id="questionDocFileList"></div>
+                            </div>
+
+                            <!-- Additional Scoring Notes (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-journal-text me-1"></i>Catatan Tambahan untuk Penilaian
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <textarea class="form-control" id="additionalNotes" name="additional_notes" rows="3"
+                                    placeholder="Contoh: &#10;- Soal nomor 5 adalah bonus&#10;- Toleransi perbedaan hasil ±0.5&#10;- Fokus penilaian pada analisis data&#10;- Abaikan format penulisan"></textarea>
+                                <small class="text-muted">
+                                    Tambahkan catatan khusus yang akan membantu LLM dalam memberikan penilaian yang
+                                    lebih akurat
+                                </small>
+                            </div>
+
+                            <!-- Score Range -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label for="scoreMin" class="form-label fw-bold">
+                                        <i class="bi bi-arrow-down-circle me-1"></i>Nilai Minimum
+                                    </label>
+                                    <input type="number" class="form-control" id="scoreMin" name="score_min"
+                                        value="{{ default_score_min }}" min="0" max="99">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="scoreMax" class="form-label fw-bold">
+                                        <i class="bi bi-arrow-up-circle me-1"></i>Nilai Maksimum
+                                    </label>
+                                    <input type="number" class="form-control" id="scoreMax" name="score_max"
+                                        value="{{ default_score_max }}" min="1" max="100">
+                                </div>
+                            </div>
+
+                            <!-- Enable Evaluation -->
+                            <div class="mb-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="enableEvaluation"
+                                        name="enable_evaluation" checked>
+                                    <label class="form-check-label fw-bold" for="enableEvaluation">
+                                        <i class="bi bi-chat-left-text me-1"></i>Sertakan Evaluasi
+                                    </label>
+                                </div>
+                                <small class="text-muted">
+                                    Tambahkan penjelasan singkat untuk setiap nilai (maks. 100 kata)
+                                </small>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="bi bi-play-circle me-2"></i>Mulai Penilaian
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Progress Section -->
+                        <div class="progress-container mt-4" id="progressContainer">
+                            <hr>
+                            <h6 class="mb-3">
+                                <i class="bi bi-hourglass-split me-2"></i>Proses Penilaian
+                            </h6>
+                            <div class="progress mb-2" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                    id="progressBar" style="width: 0%">
+                                    0%
+                                </div>
+                            </div>
+                            <p class="text-center mb-0" id="progressMessage">
+                                Mempersiapkan...
+                            </p>
                         </div>
+
+                        <!-- Result Section -->
+                        <div class="result-container mt-4" id="resultContainer">
+                            <hr>
+                            <div class="alert alert-success" role="alert" id="resultAlert">
+                                <h5 class="alert-heading">
+                                    <i class="bi bi-check-circle me-2"></i>Penilaian Selesai!
+                                </h5>
+                                <p id="resultMessage">Semua laporan telah berhasil dinilai.</p>
+                                <hr>
+                                <div class="d-flex gap-2">
+                                    <a href="#" class="btn btn-success" id="downloadBtn">
+                                        <i class="bi bi-download me-2"></i>Unduh Hasil (CSV)
+                                    </a>
+                                    <button type="button" class="btn btn-outline-secondary" id="newScoringBtn">
+                                        <i class="bi bi-plus-circle me-2"></i>Penilaian Baru
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Jobs Section -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history me-2"></i>Riwayat Penilaian
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_jobs %}
+                        <div class="list-group list-group-flush">
+                            {% for job in recent_jobs %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex w-100 justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">
+                                            Job #{{ job.id }}
+                                            {% if job.status == 'completed' %}
+                                            <span class="badge bg-success">Selesai</span>
+                                            {% elif job.status == 'processing' %}
+                                            <span class="badge bg-warning">Proses</span>
+                                            {% elif job.status == 'failed' %}
+                                            <span class="badge bg-danger">Gagal</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Pending</span>
+                                            {% endif %}
+                                        </h6>
+                                        <small class="text-muted">
+                                            {{ job.total_files }} file
+                                            {% if job.completed_at %}
+                                            • {{ job.completed_at.strftime('%d/%m/%Y %H:%M') }}
+                                            {% else %}
+                                            • {{ job.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    {% if job.status == 'completed' and job.result_csv_path %}
+                                    <a href="{{ url_for('dashboard.download_result', job_id=job.id) }}"
+                                        class="btn btn-sm btn-outline-primary" title="Unduh">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted text-center mb-0">
+                            <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                            Belum ada riwayat penilaian
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Help Card -->
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-question-circle me-2"></i>Bantuan
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ol class="ps-3 mb-0">
+                            <li class="mb-2">Unggah file PDF laporan mahasiswa</li>
+                            <li class="mb-2">Unggah kunci jawaban (opsional)</li>
+                            <li class="mb-2">Unggah dokumen soal/tugas (opsional)</li>
+                            <li class="mb-2">Tambahkan catatan khusus jika perlu</li>
+                            <li class="mb-2">Atur rentang nilai yang diinginkan</li>
+                            <li class="mb-2">Klik "Mulai Penilaian"</li>
+                            <li class="mb-2">Tunggu hingga proses selesai</li>
+                            <li>Unduh hasil dalam format CSV</li>
+                        </ol>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Recent Jobs Section -->
-    <div class="col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-clock-history me-2"></i>Riwayat Penilaian
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if recent_jobs %}
-                    <div class="list-group list-group-flush">
-                        {% for job in recent_jobs %}
-                        <div class="list-group-item px-0">
-                            <div class="d-flex w-100 justify-content-between align-items-start">
-                                <div>
-                                    <h6 class="mb-1">
-                                        Job #{{ job.id }}
-                                        {% if job.status == 'completed' %}
-                                            <span class="badge bg-success">Selesai</span>
-                                        {% elif job.status == 'processing' %}
-                                            <span class="badge bg-warning">Proses</span>
-                                        {% elif job.status == 'failed' %}
-                                            <span class="badge bg-danger">Gagal</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Pending</span>
-                                        {% endif %}
-                                    </h6>
-                                    <small class="text-muted">
-                                        {{ job.total_files }} file
-                                        {% if job.completed_at %}
-                                            • {{ job.completed_at.strftime('%d/%m/%Y %H:%M') }}
-                                        {% else %}
-                                            • {{ job.created_at.strftime('%d/%m/%Y %H:%M') }}
-                                        {% endif %}
-                                    </small>
+
+    <!-- ==================== SINGLE PROCESSING TAB ==================== -->
+    <div class="tab-pane fade" id="single-processing" role="tabpanel" aria-labelledby="single-tab">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-person-lines-fill me-2"></i>Penilaian Per Mahasiswa
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="singleUploadForm" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <!-- Question/Task Document Upload (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-earmark-text me-1"></i>Dokumen Soal/Tugas
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <div class="upload-zone upload-zone-sm" id="singleQuestionDocUploadZone">
+                                    <i class="bi bi-file-earmark-richtext text-muted"></i>
+                                    <span class="ms-2">Seret atau klik untuk memilih dokumen soal (Maks. 10 file)</span>
+                                    <input type="file" id="singleQuestionDocFiles" name="question_documents" multiple
+                                        accept=".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                                        class="d-none">
                                 </div>
-                                {% if job.status == 'completed' and job.result_csv_path %}
-                                <a href="{{ url_for('dashboard.download_result', job_id=job.id) }}" 
-                                   class="btn btn-sm btn-outline-primary"
-                                   title="Unduh">
-                                    <i class="bi bi-download"></i>
-                                </a>
-                                {% endif %}
+                                <div class="file-list mt-2" id="singleQuestionDocFileList"></div>
+                            </div>
+
+                            <!-- Answer Key Upload (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-earmark-check me-1"></i>Kunci Jawaban (PDF)
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <div class="upload-zone upload-zone-sm" id="singleAnswerKeyUploadZone">
+                                    <i class="bi bi-file-earmark-pdf text-muted"></i>
+                                    <span class="ms-2">Klik untuk memilih kunci jawaban</span>
+                                    <input type="file" id="singleAnswerKeyFile" name="answer_key"
+                                        accept=".pdf,application/pdf" class="d-none">
+                                </div>
+                                <div id="singleAnswerKeyFileName" class="mt-2"></div>
+                            </div>
+
+                            <!-- Additional Notes -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-journal-text me-1"></i>Catatan Tambahan
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <textarea class="form-control" id="singleAdditionalNotes" name="additional_notes"
+                                    rows="2" placeholder="Catatan khusus untuk penilaian..."></textarea>
+                            </div>
+
+                            <!-- Score Range -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <label for="singleScoreMin" class="form-label fw-bold">
+                                        <i class="bi bi-arrow-down-circle me-1"></i>Nilai Min
+                                    </label>
+                                    <input type="number" class="form-control" id="singleScoreMin" name="score_min"
+                                        value="{{ default_score_min }}" min="0" max="99">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="singleScoreMax" class="form-label fw-bold">
+                                        <i class="bi bi-arrow-up-circle me-1"></i>Nilai Max
+                                    </label>
+                                    <input type="number" class="form-control" id="singleScoreMax" name="score_max"
+                                        value="{{ default_score_max }}" min="1" max="100">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">&nbsp;</label>
+                                    <div class="form-check form-switch pt-2">
+                                        <input class="form-check-input" type="checkbox" id="singleEnableEvaluation"
+                                            name="enable_evaluation" checked>
+                                        <label class="form-check-label" for="singleEnableEvaluation">
+                                            Sertakan Evaluasi
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <!-- Student Input Section -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <label class="form-label fw-bold mb-0">
+                                        <i class="bi bi-people me-1"></i>Upload Jawaban Mahasiswa
+                                        <span class="text-danger">*</span>
+                                    </label>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="addStudentBtn">
+                                        <i class="bi bi-plus-circle me-1"></i>Tambah Mahasiswa
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-bordered student-table" id="studentTable">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50px;">No</th>
+                                                <th>File Jawaban</th>
+                                                <th style="width: 60px;">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="studentTableBody">
+                                            <!-- Student rows will be added here dynamically -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    NIM dan Nama mahasiswa akan otomatis dikenali dari file yang diupload. Upload
+                                    beberapa file per mahasiswa jika diperlukan.
+                                </small>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success btn-lg" id="singleSubmitBtn">
+                                    <i class="bi bi-play-circle me-2"></i>Mulai Penilaian
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Progress Section (Single) -->
+                        <div class="progress-container mt-4" id="singleProgressContainer">
+                            <hr>
+                            <h6 class="mb-3">
+                                <i class="bi bi-hourglass-split me-2"></i>Proses Penilaian
+                            </h6>
+                            <div class="progress mb-2" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                                    role="progressbar" id="singleProgressBar" style="width: 0%">
+                                    0%
+                                </div>
+                            </div>
+                            <p class="text-center mb-0" id="singleProgressMessage">
+                                Mempersiapkan...
+                            </p>
+                        </div>
+
+                        <!-- Result Section (Single) -->
+                        <div class="result-container mt-4" id="singleResultContainer">
+                            <hr>
+                            <div class="alert alert-success" role="alert" id="singleResultAlert">
+                                <h5 class="alert-heading">
+                                    <i class="bi bi-check-circle me-2"></i>Penilaian Selesai!
+                                </h5>
+                                <p id="singleResultMessage">Semua mahasiswa telah berhasil dinilai.</p>
+                                <hr>
+                                <div class="d-flex gap-2">
+                                    <a href="#" class="btn btn-success" id="singleDownloadBtn">
+                                        <i class="bi bi-download me-2"></i>Unduh Hasil (CSV)
+                                    </a>
+                                    <button type="button" class="btn btn-outline-secondary" id="singleNewScoringBtn">
+                                        <i class="bi bi-plus-circle me-2"></i>Penilaian Baru
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
-                {% else %}
-                    <p class="text-muted text-center mb-0">
-                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
-                        Belum ada riwayat penilaian
-                    </p>
-                {% endif %}
+                </div>
             </div>
-        </div>
-        
-        <!-- Help Card -->
-        <div class="card shadow-sm mt-4">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-question-circle me-2"></i>Bantuan
-                </h5>
-            </div>
-            <div class="card-body">
-                <ol class="ps-3 mb-0">
-                    <li class="mb-2">Unggah file PDF laporan mahasiswa</li>
-                    <li class="mb-2">Unggah kunci jawaban (opsional)</li>
-                    <li class="mb-2">Unggah dokumen soal/tugas (opsional)</li>
-                    <li class="mb-2">Tambahkan catatan khusus jika perlu</li>
-                    <li class="mb-2">Atur rentang nilai yang diinginkan</li>
-                    <li class="mb-2">Klik "Mulai Penilaian"</li>
-                    <li class="mb-2">Tunggu hingga proses selesai</li>
-                    <li>Unduh hasil dalam format CSV</li>
-                </ol>
+
+            <!-- Help Card for Single Processing -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-question-circle me-2"></i>Bantuan
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ol class="ps-3 mb-0">
+                            <li class="mb-2">Unggah dokumen soal (opsional)</li>
+                            <li class="mb-2">Unggah kunci jawaban (opsional)</li>
+                            <li class="mb-2">Klik "Tambah Mahasiswa"</li>
+                            <li class="mb-2">Isi NIM dan Nama mahasiswa</li>
+                            <li class="mb-2">Unggah file jawaban (bisa lebih dari 1 file)</li>
+                            <li class="mb-2">Ulangi untuk mahasiswa lainnya</li>
+                            <li class="mb-2">Klik "Mulai Penilaian"</li>
+                            <li>Unduh hasil dalam format CSV</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- Tips Card -->
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="bi bi-lightbulb me-2"></i>Tips
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="ps-3 mb-0">
+                            <li class="mb-2">Format file yang didukung: PDF, DOCX, JPG, PNG, WEBP, dll.</li>
+                            <li class="mb-2">Pastikan gambar jelas dan tidak blur</li>
+                            <li class="mb-2">Gunakan kunci jawaban untuk hasil lebih akurat</li>
+                            <li>Urutan file jawaban mempengaruhi penilaian</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

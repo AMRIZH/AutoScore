@@ -446,6 +446,188 @@ def upload_files():
         return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
 
 
+@dashboard_bp.route('/api/upload-single', methods=['POST'])
+@login_required
+def upload_single():
+    """Handle single processing upload - one student at a time with multiple files per student."""
+    try:
+        # Get form data
+        score_min = int(request.form.get('score_min', current_app.config['DEFAULT_SCORE_MIN']))
+        score_max = int(request.form.get('score_max', current_app.config['DEFAULT_SCORE_MAX']))
+        enable_evaluation = request.form.get('enable_evaluation', 'true').lower() == 'true'
+        additional_notes = request.form.get('additional_notes', '').strip() or None
+        
+        # Validate score range
+        if score_min >= score_max:
+            return jsonify({'success': False, 'error': 'Nilai minimum harus lebih kecil dari nilai maksimum.'}), 400
+        
+        if score_min < 0 or score_max > 100:
+            return jsonify({'success': False, 'error': 'Rentang nilai harus antara 0 dan 100.'}), 400
+        
+        # Get students data
+        students_data_str = request.form.get('students_data', '[]')
+        try:
+            students_data = json.loads(students_data_str)
+        except json.JSONDecodeError:
+            return jsonify({'success': False, 'error': 'Data mahasiswa tidak valid.'}), 400
+        
+        if not students_data or len(students_data) == 0:
+            return jsonify({'success': False, 'error': 'Tidak ada data mahasiswa.'}), 400
+        
+        # Create job folder
+        job_id = str(uuid.uuid4())
+        job_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], job_id)
+        os.makedirs(job_folder, exist_ok=True)
+        
+        # Handle answer key (optional)
+        answer_key_path = None
+        answer_key_file = request.files.get('answer_key')
+        if answer_key_file and answer_key_file.filename:
+            ak_errors = validate_pdf(answer_key_file)
+            if ak_errors:
+                return jsonify({'success': False, 'error': f'Kunci jawaban tidak valid: {" ".join(ak_errors)}'}), 400
+            
+            ak_filename = secure_filename(answer_key_file.filename)
+            answer_key_path = os.path.join(job_folder, f"answer_key_{ak_filename}")
+            answer_key_file.save(answer_key_path)
+        
+        # Handle question documents (optional, up to 10 files)
+        question_doc_paths_list = []
+        question_files_raw = request.files.getlist('question_documents')
+        
+        question_files = []
+        for qf in question_files_raw:
+            if qf and qf.filename and qf.filename.strip():
+                qf.seek(0, 2)
+                size = qf.tell()
+                qf.seek(0)
+                if size > 0:
+                    question_files.append(qf)
+        
+        if question_files:
+            if len(question_files) > 10:
+                return jsonify({'success': False, 'error': 'Maksimal 10 file dokumen soal yang diperbolehkan.'}), 400
+            
+            for qfile in question_files:
+                q_errors = validate_question_doc(qfile)
+                if q_errors:
+                    return jsonify({'success': False, 'error': f'Dokumen soal tidak valid: {" ".join(q_errors)}'}), 400
+            
+            question_folder = os.path.join(job_folder, 'questions')
+            os.makedirs(question_folder, exist_ok=True)
+            
+            for qfile in question_files:
+                q_filename = secure_filename(qfile.filename)
+                unique_q_filename = f"{uuid.uuid4().hex[:8]}_{q_filename}"
+                q_filepath = os.path.join(question_folder, unique_q_filename)
+                qfile.save(q_filepath)
+                question_doc_paths_list.append(q_filepath)
+        
+        question_doc_paths_json = json.dumps(question_doc_paths_list) if question_doc_paths_list else None
+        
+        # Process each student
+        saved_files = []
+        student_folder = os.path.join(job_folder, 'students')
+        os.makedirs(student_folder, exist_ok=True)
+        
+        for student_index, student in enumerate(students_data):
+            # Students no longer provide NIM/name manually, LLM will extract it
+            # Get files for this student
+            student_files = request.files.getlist(f'student_{student_index}_files')
+            
+            if not student_files or len(student_files) == 0:
+                return jsonify({'success': False, 'error': f'Tidak ada file untuk mahasiswa nomor {student_index + 1}.'}), 400
+            
+            # Create student subfolder
+            student_subfolder = os.path.join(student_folder, f"{student_index}")
+            os.makedirs(student_subfolder, exist_ok=True)
+            
+            # Validate and save student files
+            student_file_paths = []
+            for file in student_files:
+                if file and file.filename and file.filename.strip():
+                    # Validate file
+                    q_errors = validate_question_doc(file)
+                    if q_errors:
+                        return jsonify({'success': False, 'error': f'File jawaban tidak valid untuk mahasiswa nomor {student_index + 1}: {" ".join(q_errors)}'}), 400
+                    
+                    filename = secure_filename(file.filename)
+                    unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
+                    filepath = os.path.join(student_subfolder, unique_filename)
+                    file.save(filepath)
+                    student_file_paths.append(filepath)
+            
+            if not student_file_paths:
+                return jsonify({'success': False, 'error': f'Tidak ada file valid untuk mahasiswa nomor {student_index + 1}.'}), 400
+            
+            # Store student info with file paths
+            # NIM and name will be extracted by LLM from the files
+            saved_files.append({
+                'original_name': f"Mahasiswa_{student_index + 1}",
+                'saved_name': f"{student_index}",
+                'path': student_subfolder,
+                'file_paths': student_file_paths,
+                'is_single_processing': True
+            })
+        
+        # Create job in database
+        job = Job(
+            user_id=current_user.id,
+            score_min=score_min,
+            score_max=score_max,
+            enable_evaluation=enable_evaluation,
+            answer_key_path=answer_key_path,
+            question_doc_paths=question_doc_paths_json,
+            additional_notes=additional_notes,
+            total_files=len(saved_files),
+            status='pending',
+            job_type='single'
+        )
+        db.session.add(job)
+        db.session.commit()
+        
+        # Create job results for each student (NIM and name will be filled by LLM later)
+        for file_info in saved_files:
+            result = JobResult(
+                job_id=job.id,
+                filename=file_info['original_name'],
+                status='pending'
+            )
+            db.session.add(result)
+        db.session.commit()
+        
+        # Log upload
+        current_app.logger.info(f'Single Upload: {len(saved_files)} mahasiswa oleh {current_user.username}')
+        SystemLog.log('INFO', 'upload_single', 
+                     f'Upload single processing {len(saved_files)} mahasiswa', 
+                     user_id=current_user.id,
+                     details=json.dumps({'job_id': job.id, 'student_count': len(saved_files)}))
+        
+        # Initialize progress tracking
+        job_progress[job.id] = {
+            'status': 'pending',
+            'message': 'Menunggu proses...',
+            'progress': 0,
+            'total': len(saved_files),
+            'current': 0
+        }
+        
+        # Start scoring process in background
+        scoring_service = ScoringService(current_app._get_current_object())
+        scoring_service.start_scoring(job.id, job_folder, saved_files, job_progress)
+        
+        return jsonify({
+            'success': True,
+            'job_id': job.id,
+            'message': f'Berhasil mengunggah data {len(saved_files)} mahasiswa. Proses penilaian dimulai.'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error single upload: {str(e)}')
+        SystemLog.log('ERROR', 'upload_single', f'Error single upload: {str(e)}', user_id=current_user.id)
+        return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
+
+
 @dashboard_bp.route('/api/progress/<int:job_id>')
 @login_required
 def get_progress(job_id):

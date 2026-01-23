@@ -73,6 +73,9 @@ class Job(db.Model):
     status = db.Column(db.String(20), default='pending')
     status_message = db.Column(db.String(500), nullable=True)
     
+    # Job type: 'bulk' or 'single'
+    job_type = db.Column(db.String(20), default='bulk')
+    
     # Results
     result_csv_path = db.Column(db.String(500), nullable=True)
     
