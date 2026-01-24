@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Allowed extensions for question documents
     const questionDocExtensions = [
-        'pdf', 'doc', 'docx',
+        'pdf', 'doc', 'docx', 'md', 'txt', 'markdown',
         'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif',
         'tiff', 'tif'
     ];
@@ -410,6 +410,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (scoreMin >= scoreMax) {
             alert('Nilai minimum harus lebih kecil dari nilai maksimum.');
+            return;
+        }
+
+        // Validate at least one reference is provided
+        const hasAnswerKey = answerKeyFile && answerKeyFile.files.length > 0;
+        const hasQuestionDocs = selectedQuestionDocs.length > 0;
+        const hasAdditionalNotes = additionalNotes && additionalNotes.value.trim().length > 0;
+
+        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
             return;
         }
 
@@ -772,9 +782,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const student = {
             id: studentId,
-            nim: '',
-            name: '',
-            files: []
+            files: [],
+            status: 'pending', // pending, processing, completed, error
+            result: null
         };
         singleStudents.push(student);
 
@@ -785,24 +795,28 @@ document.addEventListener('DOMContentLoaded', function () {
         row.innerHTML = `
             <td class="text-center align-middle">${singleStudents.length}</td>
             <td>
-                <input type="text" class="form-control form-control-sm student-nim" 
-                       placeholder="Contoh: L200200001" data-student-id="${studentId}">
-            </td>
-            <td>
-                <input type="text" class="form-control form-control-sm student-name" 
-                       placeholder="Nama Mahasiswa" data-student-id="${studentId}">
-            </td>
-            <td>
                 <div class="upload-zone upload-zone-sm student-file-zone" data-student-id="${studentId}">
                     <i class="bi bi-file-earmark-plus text-muted"></i>
-                    <span class="ms-1 small">Klik atau seret file</span>
+                    <span class="ms-1 small">Klik, seret file, atau </span>
+                    <button type="button" class="btn btn-outline-secondary btn-sm btn-camera" data-student-id="${studentId}" title="Ambil dari kamera">
+                        <i class="bi bi-camera"></i>
+                    </button>
                     <input type="file" class="d-none student-file-input" 
-                           multiple accept=".pdf,.docx,.doc,image/*" data-student-id="${studentId}">
+                           multiple accept=".pdf,.docx,.doc,.md,.txt,image/*" data-student-id="${studentId}">
                 </div>
                 <div class="file-list mt-1 student-file-list" data-student-id="${studentId}"></div>
             </td>
             <td class="text-center align-middle">
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-student" 
+                <div class="student-status" data-student-id="${studentId}">
+                    <span class="badge bg-secondary">Menunggu</span>
+                </div>
+            </td>
+            <td class="text-center align-middle">
+                <button type="button" class="btn btn-success btn-sm btn-process-student" 
+                        data-student-id="${studentId}" title="Proses mahasiswa ini">
+                    <i class="bi bi-play-fill me-1"></i>Proses
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-student ms-1" 
                         data-student-id="${studentId}" title="Hapus">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -818,23 +832,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function setupStudentRowListeners(studentId) {
         const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
 
-        // NIM input
-        row.querySelector('.student-nim').addEventListener('input', function () {
-            const student = singleStudents.find(s => s.id === studentId);
-            if (student) student.nim = this.value;
-        });
-
-        // Name input
-        row.querySelector('.student-name').addEventListener('input', function () {
-            const student = singleStudents.find(s => s.id === studentId);
-            if (student) student.name = this.value;
-        });
-
         // File zone click
         const fileZone = row.querySelector('.student-file-zone');
         const fileInput = row.querySelector('.student-file-input');
 
-        fileZone.addEventListener('click', () => fileInput.click());
+        fileZone.addEventListener('click', (e) => {
+            // Don't trigger if clicking the camera button
+            if (e.target.closest('.btn-camera')) return;
+            fileInput.click();
+        });
         fileZone.addEventListener('dragover', handleDragOver);
         fileZone.addEventListener('dragleave', handleDragLeave);
         fileZone.addEventListener('drop', function (e) {
@@ -851,6 +857,17 @@ document.addEventListener('DOMContentLoaded', function () {
         fileInput.addEventListener('change', function (e) {
             const files = Array.from(e.target.files);
             addStudentFiles2(studentId, files);
+        });
+
+        // Camera button
+        row.querySelector('.btn-camera').addEventListener('click', function (e) {
+            e.stopPropagation();
+            openCameraModal(studentId);
+        });
+
+        // Process button
+        row.querySelector('.btn-process-student').addEventListener('click', function () {
+            processStudent(studentId);
         });
 
         // Remove button
@@ -961,6 +978,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (scoreMin >= scoreMax) {
             alert('Nilai minimum harus lebih kecil dari nilai maksimum.');
+            return;
+        }
+
+        // Validate at least one reference is provided
+        const hasAnswerKey = singleAnswerKeyFile && singleAnswerKeyFile.files.length > 0;
+        const hasQuestionDocs = singleSelectedQuestionDocs.length > 0;
+        const hasAdditionalNotes = singleAdditionalNotes && singleAdditionalNotes.value.trim().length > 0;
+
+        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
             return;
         }
 
@@ -1189,5 +1216,243 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ==================== CAMERA FUNCTIONS ====================
+    let currentCameraStudentId = null;
+    let cameraStream = null;
+
+    function openCameraModal(studentId) {
+        currentCameraStudentId = studentId;
+        const modal = new bootstrap.Modal(document.getElementById('cameraModal'));
+        modal.show();
+        startCamera();
+    }
+
+    async function startCamera() {
+        const video = document.getElementById('cameraPreview');
+        const errorDiv = document.getElementById('cameraError');
+        const capturedPreview = document.getElementById('capturedPreview');
+        const captureBtn = document.getElementById('captureBtn');
+        const retakeBtn = document.getElementById('retakeBtn');
+        const useBtn = document.getElementById('useCaptureBtn');
+
+        // Reset UI
+        video.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+        capturedPreview.classList.add('d-none');
+        captureBtn.classList.remove('d-none');
+        retakeBtn.classList.add('d-none');
+        useBtn.classList.add('d-none');
+
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+            });
+            video.srcObject = cameraStream;
+        } catch (err) {
+            console.error('Camera error:', err);
+            video.classList.add('d-none');
+            errorDiv.classList.remove('d-none');
+        }
+    }
+
+    function stopCamera() {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+    }
+
+    // Camera modal event listeners
+    document.getElementById('cameraModal')?.addEventListener('hidden.bs.modal', stopCamera);
+
+    document.getElementById('captureBtn')?.addEventListener('click', function () {
+        const video = document.getElementById('cameraPreview');
+        const canvas = document.getElementById('cameraCanvas');
+        const capturedImage = document.getElementById('capturedImage');
+        const capturedPreview = document.getElementById('capturedPreview');
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        capturedImage.src = canvas.toDataURL('image/jpeg', 0.9);
+        video.classList.add('d-none');
+        capturedPreview.classList.remove('d-none');
+        this.classList.add('d-none');
+        document.getElementById('retakeBtn').classList.remove('d-none');
+        document.getElementById('useCaptureBtn').classList.remove('d-none');
+    });
+
+    document.getElementById('retakeBtn')?.addEventListener('click', startCamera);
+
+    document.getElementById('useCaptureBtn')?.addEventListener('click', function () {
+        const canvas = document.getElementById('cameraCanvas');
+        canvas.toBlob(function (blob) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const file = new File([blob], `foto_${timestamp}.jpg`, { type: 'image/jpeg' });
+            addStudentFiles2(currentCameraStudentId, [file]);
+            bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+        }, 'image/jpeg', 0.9);
+    });
+
+    // ==================== PER-STUDENT PROCESSING ====================
+    async function processStudent(studentId) {
+        const student = singleStudents.find(s => s.id === studentId);
+        if (!student) return;
+
+        if (student.files.length === 0) {
+            alert('Silakan unggah file jawaban terlebih dahulu.');
+            return;
+        }
+
+        if (student.status === 'processing') {
+            alert('Mahasiswa ini sedang diproses.');
+            return;
+        }
+
+        // Validate at least one reference is provided
+        const hasAnswerKey = singleAnswerKeyFile && singleAnswerKeyFile.files.length > 0;
+        const hasQuestionDocs = singleSelectedQuestionDocs.length > 0;
+        const hasAdditionalNotes = singleAdditionalNotes && singleAdditionalNotes.value.trim().length > 0;
+
+        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
+            return;
+        }
+
+        // Update status to processing
+        student.status = 'processing';
+        updateStudentStatus(studentId);
+
+        const scoreMin = parseInt(document.getElementById('singleScoreMin').value) || 40;
+        const scoreMax = parseInt(document.getElementById('singleScoreMax').value) || 100;
+        const enableEvaluation = document.getElementById('singleEnableEvaluation').checked;
+
+        const formData = new FormData();
+        formData.append('csrf_token', document.querySelector('#singleUploadForm [name=csrf_token]').value);
+        formData.append('score_min', scoreMin);
+        formData.append('score_max', scoreMax);
+        formData.append('enable_evaluation', enableEvaluation);
+        formData.append('students_data', JSON.stringify([{ fileCount: student.files.length }]));
+
+        // Add question docs
+        singleSelectedQuestionDocs.forEach(file => formData.append('question_documents', file));
+
+        // Add answer key
+        if (singleAnswerKeyFile?.files.length > 0) {
+            formData.append('answer_key', singleAnswerKeyFile.files[0]);
+        }
+
+        // Add notes
+        if (singleAdditionalNotes?.value.trim()) {
+            formData.append('additional_notes', singleAdditionalNotes.value.trim());
+        }
+
+        // Add student files
+        student.files.forEach(file => formData.append('student_0_files', file));
+
+        try {
+            const response = await fetch('/api/upload-single', { method: 'POST', body: formData });
+            const result = await response.json();
+
+            if (!result.success) throw new Error(result.error);
+
+            // Poll for result
+            pollStudentResult(studentId, result.job_id);
+        } catch (error) {
+            student.status = 'error';
+            student.result = { error: error.message };
+            updateStudentStatus(studentId);
+        }
+    }
+
+    async function pollStudentResult(studentId, jobId) {
+        const student = singleStudents.find(s => s.id === studentId);
+        if (!student) return;
+
+        try {
+            const response = await fetch(`/api/job/${jobId}`);
+            const data = await response.json();
+
+            if (data.job.status === 'completed') {
+                const res = data.results[0] || {};
+                student.status = 'completed';
+                student.result = {
+                    nim: res.nim || '[Tidak Terbaca]',
+                    name: res.student_name || '[Tidak Terbaca]',
+                    score: res.score,
+                    evaluation: res.evaluation
+                };
+                updateStudentStatus(studentId);
+            } else if (data.job.status === 'failed') {
+                student.status = 'error';
+                student.result = { error: data.job.status_message || 'Gagal memproses' };
+                updateStudentStatus(studentId);
+            } else {
+                setTimeout(() => pollStudentResult(studentId, jobId), 2000);
+            }
+        } catch (error) {
+            student.status = 'error';
+            student.result = { error: error.message };
+            updateStudentStatus(studentId);
+        }
+    }
+
+    function updateStudentStatus(studentId) {
+        const student = singleStudents.find(s => s.id === studentId);
+        const statusDiv = document.querySelector(`.student-status[data-student-id="${studentId}"]`);
+        const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
+        if (!student || !statusDiv || !row) return;
+
+        // Get the action buttons (in the 4th column)
+        const processBtn = row.querySelector('.btn-process-student');
+        const removeBtn = row.querySelector('.btn-remove-student');
+
+        let statusHtml = '';
+        switch (student.status) {
+            case 'processing':
+                statusHtml = '<span class="badge bg-warning"><i class="bi bi-hourglass-split me-1"></i>Memproses...</span>';
+                if (processBtn) processBtn.disabled = true;
+                if (removeBtn) removeBtn.disabled = true;
+                break;
+            case 'completed':
+                const nim = student.result?.nim || '[Tidak Terbaca]';
+                const name = student.result?.name || '[Tidak Terbaca]';
+                const score = student.result?.score ?? '-';
+                statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Selesai</span>
+                        <div class="student-result-display mt-1">
+                            <small><strong>NIM:</strong> ${nim}</small><br>
+                            <small><strong>Nama:</strong> ${name}</small><br>
+                            <small><strong>Nilai:</strong> ${score}</small>
+                        </div>`;
+                if (processBtn) processBtn.disabled = true;
+                if (removeBtn) removeBtn.disabled = false;
+                break;
+            case 'error':
+                statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Error</span>
+                        <div class="student-result-display mt-1 text-danger">
+                            <small>${student.result?.error || 'Terjadi kesalahan'}</small>
+                        </div>`;
+                if (processBtn) {
+                    processBtn.disabled = false;
+                    processBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Ulangi';
+                    processBtn.classList.remove('btn-success');
+                    processBtn.classList.add('btn-warning');
+                }
+                if (removeBtn) removeBtn.disabled = false;
+                break;
+            default:
+                statusHtml = '<span class="badge bg-secondary">Menunggu</span>';
+                if (processBtn) {
+                    processBtn.disabled = false;
+                    processBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Proses';
+                    processBtn.classList.remove('btn-warning');
+                    processBtn.classList.add('btn-success');
+                }
+                if (removeBtn) removeBtn.disabled = false;
+        }
+        statusDiv.innerHTML = statusHtml;
     }
 });

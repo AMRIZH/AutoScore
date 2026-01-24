@@ -69,6 +69,24 @@
         padding: 0.25rem 0.5rem;
     }
 
+    .btn-camera {
+        padding: 0.25rem 0.5rem;
+        margin-left: 0.25rem;
+    }
+
+    .student-status {
+        font-size: 0.75rem;
+    }
+
+    .student-status .badge {
+        font-size: 0.7rem;
+    }
+
+    .student-result-display {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
     .nav-tabs .nav-link {
         font-weight: 500;
     }
@@ -82,6 +100,18 @@
     .nav-tabs .nav-link:not(.active):hover {
         border-color: #dee2e6;
         background-color: #f8f9fa;
+    }
+
+    /* Camera modal styles */
+    .camera-preview {
+        width: 100%;
+        max-width: 640px;
+        background-color: #000;
+        border-radius: 0.5rem;
+    }
+
+    .camera-canvas {
+        display: none;
     }
 </style>
 {% endblock %}
@@ -142,6 +172,13 @@
                                         accept=".pdf,application/pdf" class="d-none">
                                 </div>
                                 <div class="file-list mt-2" id="studentFileList"></div>
+                            </div>
+
+                            <!-- Reference requirement notice -->
+                            <div class="alert alert-info py-2 mb-4">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, atau
+                                Catatan Tambahan
                             </div>
 
                             <!-- Answer Key Upload (Optional) -->
@@ -348,7 +385,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> <!-- Close bulk-processing tab-pane -->
 
     <!-- ==================== SINGLE PROCESSING TAB ==================== -->
     <div class="tab-pane fade" id="single-processing" role="tabpanel" aria-labelledby="single-tab">
@@ -364,6 +401,13 @@
                         <form id="singleUploadForm" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+                            <!-- Reference requirement notice -->
+                            <div class="alert alert-info py-2 mb-4">
+                                <i class="bi bi-info-circle me-2"></i>
+                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, atau
+                                Catatan Tambahan
+                            </div>
+
                             <!-- Question/Task Document Upload (Optional) -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">
@@ -372,9 +416,10 @@
                                 </label>
                                 <div class="upload-zone upload-zone-sm" id="singleQuestionDocUploadZone">
                                     <i class="bi bi-file-earmark-richtext text-muted"></i>
-                                    <span class="ms-2">Seret atau klik untuk memilih dokumen soal (Maks. 10 file)</span>
+                                    <span class="ms-2">Seret atau klik untuk memilih dokumen soal (PDF, DOCX, TXT,
+                                        MD, gambar - Maks. 10 file)</span>
                                     <input type="file" id="singleQuestionDocFiles" name="question_documents" multiple
-                                        accept=".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+                                        accept=".pdf,.docx,.doc,.txt,.md,.markdown,text/plain,text/markdown,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
                                         class="d-none">
                                 </div>
                                 <div class="file-list mt-2" id="singleQuestionDocFileList"></div>
@@ -383,14 +428,15 @@
                             <!-- Answer Key Upload (Optional) -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">
-                                    <i class="bi bi-file-earmark-check me-1"></i>Kunci Jawaban (PDF)
+                                    <i class="bi bi-file-earmark-check me-1"></i>Kunci Jawaban
                                     <span class="badge bg-secondary">Opsional</span>
                                 </label>
                                 <div class="upload-zone upload-zone-sm" id="singleAnswerKeyUploadZone">
-                                    <i class="bi bi-file-earmark-pdf text-muted"></i>
-                                    <span class="ms-2">Klik untuk memilih kunci jawaban</span>
+                                    <i class="bi bi-file-earmark-text text-muted"></i>
+                                    <span class="ms-2">Klik untuk memilih kunci jawaban (PDF, TXT, MD)</span>
                                     <input type="file" id="singleAnswerKeyFile" name="answer_key"
-                                        accept=".pdf,application/pdf" class="d-none">
+                                        accept=".pdf,.txt,.md,.markdown,text/plain,text/markdown,application/pdf"
+                                        class="d-none">
                                 </div>
                                 <div id="singleAnswerKeyFileName" class="mt-2"></div>
                             </div>
@@ -453,7 +499,8 @@
                                             <tr>
                                                 <th style="width: 50px;">No</th>
                                                 <th>File Jawaban</th>
-                                                <th style="width: 60px;">Aksi</th>
+                                                <th style="width: 100px;">Status</th>
+                                                <th style="width: 140px;">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody id="studentTableBody">
@@ -463,8 +510,9 @@
                                 </div>
                                 <small class="text-muted">
                                     <i class="bi bi-info-circle me-1"></i>
-                                    NIM dan Nama mahasiswa akan otomatis dikenali dari file yang diupload. Upload
-                                    beberapa file per mahasiswa jika diperlukan.
+                                    NIM dan Nama mahasiswa akan otomatis dikenali oleh AI dari file yang diupload.
+                                    Klik tombol "Proses" untuk menilai satu mahasiswa, atau "Mulai Penilaian" untuk
+                                    semua sekaligus.
                                 </small>
                             </div>
 
@@ -529,10 +577,10 @@
                             <li class="mb-2">Unggah dokumen soal (opsional)</li>
                             <li class="mb-2">Unggah kunci jawaban (opsional)</li>
                             <li class="mb-2">Klik "Tambah Mahasiswa"</li>
-                            <li class="mb-2">Isi NIM dan Nama mahasiswa</li>
-                            <li class="mb-2">Unggah file jawaban (bisa lebih dari 1 file)</li>
-                            <li class="mb-2">Ulangi untuk mahasiswa lainnya</li>
-                            <li class="mb-2">Klik "Mulai Penilaian"</li>
+                            <li class="mb-2">Unggah file jawaban (bisa foto dari kamera!)</li>
+                            <li class="mb-2">Klik "Proses" untuk menilai langsung, atau</li>
+                            <li class="mb-2">Tambah mahasiswa lain sambil menunggu</li>
+                            <li class="mb-2">NIM & Nama otomatis dikenali AI</li>
                             <li>Unduh hasil dalam format CSV</li>
                         </ol>
                     </div>
@@ -554,6 +602,45 @@
                         </ul>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div> <!-- Close single-processing tab-pane -->
+</div> <!-- Close tab-content -->
+
+<!-- Camera Modal -->
+<div class="modal fade" id="cameraModal" tabindex="-1" aria-labelledby="cameraModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cameraModalLabel">
+                    <i class="bi bi-camera me-2"></i>Ambil Foto Dokumen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <video id="cameraPreview" class="camera-preview mb-3" autoplay playsinline></video>
+                <canvas id="cameraCanvas" class="camera-canvas"></canvas>
+                <div id="cameraError" class="alert alert-danger d-none">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Tidak dapat mengakses kamera. Pastikan browser memiliki izin kamera.
+                </div>
+                <div id="capturedPreview" class="d-none mb-3">
+                    <img id="capturedImage" class="img-fluid rounded" style="max-height: 400px;" alt="Captured">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Batal
+                </button>
+                <button type="button" class="btn btn-primary" id="captureBtn">
+                    <i class="bi bi-camera me-1"></i>Ambil Foto
+                </button>
+                <button type="button" class="btn btn-warning d-none" id="retakeBtn">
+                    <i class="bi bi-arrow-repeat me-1"></i>Ambil Ulang
+                </button>
+                <button type="button" class="btn btn-success d-none" id="useCaptureBtn">
+                    <i class="bi bi-check-circle me-1"></i>Gunakan Foto
+                </button>
             </div>
         </div>
     </div>

@@ -45,19 +45,20 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 
 | Fitur | Deskripsi |
 |-------|-----------|
-| 📄 **Upload PDF Massal** | Unggah hingga 50 file PDF laporan mahasiswa sekaligus |
-| 🔑 **Kunci Jawaban Opsional** | Gunakan PDF referensi sebagai acuan penilaian |
-| 📝 **Dokumen Soal/Tugas** | Upload dokumen soal (PDF, DOCX, gambar) hingga 10 file dengan OCR |
+| 🚀 **Mode Dual: Bulk & Single** | Pilih antara penilaian massal (hingga 50 file) atau per mahasiswa |
+| 📄 **Ekstraksi Otomatis** | NIM dan Nama mahasiswa diekstrak otomatis dari dokumen oleh AI |
+| 📷 **Kamera Capture** | Ambil foto jawaban mahasiswa langsung dari webcam/kamera HP |
+| 🛑 **Real-time Status** | Pantau status (Waiting, Processing, Completed) per mahasiswa secara real-time |
+| 🛡️ **Failsafe System** | Penanganan otomatis jika NIM/Nama tidak terbaca (ditandai `[Tidak Terbaca]`) |
+| 📂 **Format Fleksibel** | Dukungan teks (TXT, MD) dan gambar untuk soal/kunci jawaban |
+| 🔑 **Kunci Jawaban & Soal** | Upload kunci jawaban dan soal sebagai referensi penilaian (wajib min. 1) |
 | 💬 **Catatan Tambahan** | Instruksi khusus untuk panduan penilaian LLM |
-| 🤖 **Penilaian AI** | Google Gemini 2.5 Flash untuk analisis dan penilaian |
-| 📊 **Export CSV** | Hasil penilaian dalam format CSV (No, NIM, Nama, Skor, Evaluasi) |
+| 🤖 **Penilaian AI** | Google Gemini 2.5 Flash untuk analisis dan penilaian mendalam |
+| 📊 **Export CSV** | Hasil penilaian lengkap dalam format CSV |
 | 🔄 **Round-Robin API** | Rotasi 20 API key untuk menghindari rate limit |
-| 🖥️ **GPU Support** | Akselerasi GPU untuk parsing PDF dengan Docling + EasyOCR |
-| 🔒 **Sistem Login** | Autentikasi pengguna dengan role admin dan aslab |
+| 🖥️ **GPU Acceleration** | Akselerasi GPU untuk parsing dokumen dengan Docling + EasyOCR |
+| 🔒 **Role Management** | Sistem login aman dengan role Admin dan Aslab |
 | ⚙️ **Admin Panel** | Manajemen pengguna, statistik, dan pengaturan runtime |
-| 🎛️ **Runtime Settings** | Ubah konfigurasi sistem tanpa restart aplikasi |
-| 🧹 **Auto Cleanup** | Pembersihan otomatis file temporary setiap hari |
-| 📱 **Responsive UI** | Antarmuka modern yang responsif di semua perangkat |
 
 ---
 
@@ -76,12 +77,12 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 
 ## 📋 Persyaratan Sistem
 
-### Minimum
+### Minimum (CPU Only)
 - Python 3.10+
 - 4GB RAM
 - 10GB Disk Space
 
-### Rekomendasi (dengan GPU)
+### Rekomendasi (GPU Enabled)
 - Python 3.11
 - 8GB+ RAM
 - NVIDIA GPU dengan CUDA 12.1+
@@ -89,9 +90,46 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 
 ---
 
-## 🚀 Instalasi
+## 🚀 Instalasi & Deployment
 
-### Metode 1: Instalasi Lokal
+### 🐳 Metode 1: Docker (Direkomendasikan)
+
+#### Opsi A: Versi GPU (Tercepat & Terbaik)
+Gunakan opsi ini jika mesin Anda memiliki NVIDIA GPU.
+
+1.  **Prasyarat**: Pastikan NVIDIA Container Toolkit terinstall.
+    ```bash
+    # Cek instalasi
+    nvidia-smi
+    ```
+2.  **Konfigurasi Environment**:
+    ```bash
+    cp .env.example .env
+    # Edit .env dan isi API key Gemini
+    ```
+3.  **Jalankan dengan Docker Compose**:
+    ```bash
+    docker-compose up -d --build
+    ```
+    *Aplikasi akan berjalan di port 5000.*
+
+#### Opsi B: Versi CPU Only (Kompatibilitas Luas)
+Gunakan opsi ini jika tidak memiliki GPU khusus.
+
+1.  **Konfigurasi Environment**:
+    ```bash
+    cp .env.example .env
+    # Edit .env dan isi API key Gemini
+    ```
+2.  **Jalankan dengan Docker Compose CPU**:
+    ```bash
+    docker-compose -f docker-compose.cpu.yml up -d --build
+    ```
+    *Aplikasi akan berjalan di port 5000.*
+
+---
+
+### 💻 Metode 2: Instalasi Manual (Lokal)
 
 1. **Clone repository**
    ```bash
@@ -127,43 +165,7 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
    ```
 
 6. **Akses aplikasi**
-   
-   Buka browser dan akses: http://localhost:5000
-
-### Metode 2: Docker (GPU)
-
-1. **Pastikan NVIDIA Container Toolkit terinstall**
-   ```bash
-   # Ubuntu/Debian
-   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-   curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-   sudo apt-get update
-   sudo apt-get install -y nvidia-container-toolkit
-   sudo nvidia-ctk runtime configure --runtime=docker
-   sudo systemctl restart docker
-   ```
-
-2. **Konfigurasi environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env dan isi API key Gemini
-   ```
-
-3. **Build dan jalankan**
-   ```bash
-   docker-compose up -d
-   ```
-
-### Metode 3: Docker (CPU Only)
-
-```bash
-cp .env.example .env
-# Edit .env dan isi API key Gemini
-
-docker-compose -f docker-compose.cpu.yml up -d
-```
+   - Buka browser: http://localhost:5000
 
 ---
 
@@ -173,14 +175,14 @@ docker-compose -f docker-compose.cpu.yml up -d
 
 1. Buka [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Buat API key baru
-3. Masukkan ke file `.env`:
+3. Masukkan ke file `.env` (dukung hingga 20 key untuk rotasi):
    ```
    GEMINI_API_KEY_1=your-api-key-here
    GEMINI_API_KEY_2=your-second-api-key
-   # ... hingga 20 key untuk round-robin
+   ...
    ```
 
-### Konfigurasi Lengkap (.env)
+### Konfigurasi Runtime (.env)
 
 | Variable | Default | Deskripsi |
 |----------|---------|-----------|
@@ -190,10 +192,30 @@ docker-compose -f docker-compose.cpu.yml up -d
 | `MAX_WORKERS` | 4 | Jumlah worker parallel |
 | `ENABLE_OCR` | true | Aktifkan OCR untuk PDF scan |
 | `ENABLE_CLEANUP` | true | Pembersihan otomatis file |
-| `DEFAULT_SCORE_MIN` | 40 | Nilai minimum default |
-| `DEFAULT_SCORE_MAX` | 100 | Nilai maksimum default |
 
-> 💡 **Tip:** `MAX_FILE_SIZE_MB`, `MAX_PDF_COUNT`, `ENABLE_OCR`, dan `ENABLE_CLEANUP` dapat diubah saat runtime melalui Admin Panel → Pengaturan
+---
+
+## 📖 Panduan Penggunaan
+
+### Mode 1: Penilaian Massal (Bulk Processing)
+Cocok untuk menilai satu kelas sekaligus.
+1.  **Upload Laporan**: Drag & drop hingga 50 file PDF mahasiswa.
+2.  **Referensi (Wajib Min. 1)**: Upload Kunci Jawaban (PDF) ATAU Soal (PDF/Dokumen/Gambar) ATAU Catatan Tambahan.
+3.  **Parameter**: Atur rentang nilai (0-100).
+4.  **Proses**: Klik "Mulai Penilaian". Semua file akan diproses secara antrian.
+5.  **Hasil**: Download CSV berisi semua nilai.
+
+### Mode 2: Penilaian Per Mahasiswa (Single Processing)
+Cocok untuk susulan atau perbaikan nilai.
+1.  **Tambah Mahasiswa**: Klik tombol tambah baris mahasiswa.
+2.  **Upload/Foto**: Upload file PDF jawaban ATAU gunakan **Fitur Kamera** untuk memotret lembar jawaban fisik langsung.
+3.  **Referensi**: Sama seperti mode massal, minimal satu referensi wajib diisi.
+4.  **Proses Individual**: Klik tombol "Proses" pada baris mahasiswa tertentu.
+5.  **Status Real-time**: 
+    - 🟡 `Processing`: Sedang dinilai
+    - 🟢 `Selesai`: Nilai keluar (misal: 85)
+    - 🔴 `Gagal`: Error (bisa di-retry)
+6.  **Failsafe**: Jika NIM/Nama tidak terbaca, sistem akan menandai `[Tidak Terbaca]` agar bisa diperiksa manual.
 
 ---
 
@@ -203,97 +225,7 @@ docker-compose -f docker-compose.cpu.yml up -d
 |----------|----------|------|
 | admin | informatika | Admin |
 
-Kredensial admin dapat dikonfigurasi di file `.env`:
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
-```
-
 > ⚠️ **Penting:** Segera ganti password default setelah instalasi melalui Admin Panel!
-
-> 💡 **Tip:** Untuk menambahkan pengguna baru (asisten lab), gunakan Admin Panel → Pengguna → Create
-
----
-
-## 📖 Panduan Penggunaan
-
-### 1. Login
-- Buka aplikasi di browser
-- Masukkan username dan password
-- Klik "Masuk"
-
-### 2. Upload Laporan
-- Di dashboard, klik area upload atau drag-drop file PDF
-- Pilih semua file PDF laporan mahasiswa (maks. 50 file)
-- (Opsional) Upload kunci jawaban sebagai referensi PDF
-- (Opsional) Upload dokumen soal/tugas (PDF, DOCX, atau gambar hingga 10 file)
-- (Opsional) Tambahkan catatan khusus untuk panduan penilaian
-
-### 3. Konfigurasi Penilaian
-- Atur rentang nilai (min-max)
-- Pilih apakah ingin menyertakan evaluasi tertulis
-
-### 4. Mulai Penilaian
-- Klik tombol "Mulai Penilaian"
-- Tunggu proses selesai (progress bar akan menunjukkan status)
-
-### 5. Download Hasil
-- Setelah selesai, klik "Unduh Hasil (CSV)"
-- File CSV berisi: No, NIM, Nama, Nilai, Evaluasi
-
----
-
-## 📁 Struktur Proyek
-
-```
-autoscoring/
-├── app/
-│   ├── __init__.py          # Application factory
-│   ├── config.py            # Configuration
-│   ├── extensions.py        # Flask extensions
-│   ├── models.py            # Database models
-│   ├── routes/
-│   │   ├── auth.py          # Authentication routes
-│   │   ├── dashboard.py     # Main dashboard
-│   │   └── admin_views.py   # Flask-Admin views
-│   ├── services/
-│   │   ├── docling_service.py   # PDF parsing
-│   │   ├── gemini_service.py    # LLM scoring
-│   │   ├── scoring_service.py   # Orchestration
-│   │   └── cleanup_service.py   # File cleanup
-│   ├── templates/           # HTML templates
-│   └── static/              # CSS, JS, images
-├── uploads/                 # Temporary uploads
-├── results/                 # CSV results
-├── logs/                    # Application logs
-├── run.py                   # Entry point
-├── Dockerfile               # GPU Docker image
-├── Dockerfile.cpu           # CPU Docker image
-├── docker-compose.yml       # GPU compose
-├── docker-compose.cpu.yml   # CPU compose
-├── requirements.txt         # Python dependencies
-└── .env.example            # Environment template
-```
-
----
-
-## 🔧 Admin Panel
-
-Akses admin panel di: `http://localhost:5000/admin`
-
-Fitur admin:
-- **Dashboard** - Statistik sistem (total pengguna, jobs, status)
-- **Manajemen Pengguna** - CRUD pengguna dengan role admin/aslab
-- **Riwayat Pekerjaan** - Lihat semua job penilaian
-- **Hasil Penilaian** - Telusuri hasil per mahasiswa
-- **Log Sistem** - Audit trail aktivitas sistem
-- **Pengaturan Runtime** - Ubah konfigurasi tanpa restart:
-  - Max File Size (MB)
-  - Max PDF Count
-  - Enable/Disable OCR
-  - Enable/Disable Auto Cleanup
-
-> 💡 **Tip:** Pengaturan runtime berlaku langsung tanpa restart. Untuk pengaturan permanen, edit file `.env`
 
 ---
 
@@ -302,81 +234,16 @@ Fitur admin:
 | Kolom | Deskripsi |
 |-------|-----------|
 | No | Nomor urut |
-| NIM | Nomor Induk Mahasiswa |
-| student_name | Nama mahasiswa |
+| NIM | Nomor Induk Mahasiswa (hasil ekstraksi AI) |
+| student_name | Nama mahasiswa (hasil ekstraksi AI) |
 | Score | Nilai (sesuai rentang yang diatur) |
-| Evaluation | Evaluasi singkat (maks. 100 kata) |
+| Evaluation | Evaluasi singkat & feedback perbaikan |
 
 ---
 
-## 🐛 Troubleshooting
-
-### PDF tidak terbaca
-- Pastikan file PDF valid dan tidak corrupt
-- Aktifkan OCR di `.env` untuk PDF hasil scan
-- Periksa log di folder `logs/`
-
-### Rate Limit Error
-- Tambahkan lebih banyak API key Gemini
-- Kurangi jumlah worker (`MAX_WORKERS`)
-- Tunggu beberapa menit dan coba lagi
-
-### GPU tidak terdeteksi
-- Pastikan NVIDIA driver terinstall
-- Verifikasi dengan `nvidia-smi`
-- Pastikan CUDA version kompatibel
-
-### Memory Error
-- Kurangi jumlah worker
-- Proses file dalam batch lebih kecil
-- Restart aplikasi untuk membersihkan memory
-
----
-
-## 📝 Limitasi
-
-- Maksimal 50 file PDF per job (dapat dikonfigurasi)
-- PDF harus dalam format teks (bukan hanya gambar, kecuali OCR aktif)
-- Membutuhkan koneksi internet untuk Gemini API
-- Evaluasi dalam Bahasa Indonesia
-
----
-
-## 🔐 Keamanan
-
-- Password di-hash menggunakan Werkzeug
-- CSRF protection aktif
-- Validasi file upload ketat
-- Prompt injection mitigation pada LLM
-- File temporary dibersihkan otomatis
-
----
-
-## 📄 Lisensi
+## 🤝 Kontribusi & Lisensi
 
 Aplikasi ini dikembangkan untuk keperluan internal Lab FKI Universitas Muhammadiyah Surakarta.
 
----
-
-## 🤝 Kontribusi
-
-Untuk melaporkan bug atau mengusulkan fitur, silakan hubungi tim Lab FKI UMS.
-
----
-
-## 📞 Kontak
-
-**Lab FKI Universitas Muhammadiyah Surakarta**  
-Program Studi Informatika  
-Jl. A. Yani, Pabelan, Kartasura, Sukoharjo 57162
-
----
-
-*Dibuat dengan ❤️ untuk kemajuan pendidikan*
-
----
-
-<p align="center">
-  <strong>AutoScoring v1.1</strong><br>
-  © 2026 Lab FKI Universitas Muhammadiyah Surakarta
-</p>
+**AutoScoring v1.2**  
+© 2026 Lab FKI Universitas Muhammadiyah Surakarta

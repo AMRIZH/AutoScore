@@ -553,11 +553,20 @@ class ScoringService:
             
             # Data rows
             for idx, result in enumerate(sorted_results, 1):
+                # Use clearer failsafe message for unreadable NIM/name
+                nim = result.get('nim', '')
+                if not nim or nim in ('TIDAK_DITEMUKAN', 'ERROR', ''):
+                    nim = '[Tidak Terbaca]'
+                
+                student_name = result.get('student_name', '')
+                if not student_name or student_name in ('TIDAK_DITEMUKAN', 'ERROR', ''):
+                    student_name = '[Tidak Terbaca]'
+                
                 writer.writerow([
                     idx,
                     result.get('filename', ''),
-                    result.get('nim', 'TIDAK_DITEMUKAN'),
-                    result.get('student_name', 'TIDAK_DITEMUKAN'),
+                    nim,
+                    student_name,
                     result.get('score', ''),
                     result.get('evaluation', '')
                 ])

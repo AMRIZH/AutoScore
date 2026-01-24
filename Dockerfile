@@ -46,8 +46,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --chown=appuser:appuser . .
 
 # Create necessary directories
-RUN mkdir -p uploads results logs && \
-    chown -R appuser:appuser uploads results logs
+RUN mkdir -p uploads results logs instance && \
+    chown -R appuser:appuser uploads results logs instance
 
 # Switch to non-root user
 USER appuser
@@ -60,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/login || exit 1
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "300", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "300", "run:app"]

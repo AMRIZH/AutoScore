@@ -28,11 +28,13 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
 
-# Allowed extensions for question documents (PDF, DOCX, images)
+# Allowed extensions for question documents (PDF, DOCX, plain text, images)
 # NOTE: SVG removed due to XSS risk (requires server-side sanitization if needed)
 # NOTE: RAW camera formats (cr2, nef, arw) removed - not commonly used for exam docs
 QUESTION_DOC_EXTENSIONS = {
     'pdf', 'doc', 'docx',
+    # Plain text formats
+    'txt', 'md', 'markdown',
     # Images (common raster formats only)
     'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 
     'tiff', 'tif'
@@ -44,6 +46,8 @@ QUESTION_DOC_MIME_TYPES = {
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    # Plain text
+    'text/plain', 'text/markdown', 'text/x-markdown',
     # Images
     'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
     'image/heic', 'image/heif', 'image/tiff',
@@ -161,8 +165,43 @@ def validate_pdf(file):
     return errors
 
 
+# Allowed extensions for answer key (PDF and plain text)
+ANSWER_KEY_EXTENSIONS = {'pdf', 'txt', 'md', 'markdown'}
+
+def validate_answer_key(file):
+    """Validate answer key file (PDF, TXT, or MD)."""
+    errors = []
+    
+    if not file.filename:
+        errors.append('Nama file tidak valid.')
+        return errors
+    
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ANSWER_KEY_EXTENSIONS:
+        errors.append(f'File {file.filename} memiliki ekstensi tidak didukung. Gunakan PDF, TXT, atau MD.')
+        return errors
+    
+    # Plain text files don't need strict validation
+    if ext in {'txt', 'md', 'markdown'}:
+        return errors
+    
+    # PDF validation
+    if ext == 'pdf':
+        if file.content_type not in ['application/pdf', 'application/x-pdf']:
+            errors.append(f'File {file.filename} memiliki tipe MIME tidak valid: {file.content_type}')
+        
+        file.seek(0)
+        header = file.read(5)
+        file.seek(0)
+        
+        if header != b'%PDF-':
+            errors.append(f'File {file.filename} bukan file PDF yang valid.')
+    
+    return errors
+
+
 def validate_question_doc(file):
-    """Validate question document file (PDF, DOCX, or image) with MIME and magic byte checks."""
+    """Validate question document file (PDF, DOCX, plain text, or image) with MIME and magic byte checks."""
     errors = []
     
     # Check filename extension
@@ -176,6 +215,10 @@ def validate_question_doc(file):
         return errors
     
     ext = file.filename.rsplit('.', 1)[1].lower()
+    
+    # Plain text files don't need strict MIME/signature validation
+    if ext in {'txt', 'md', 'markdown'}:
+        return errors  # Allow plain text files without strict validation
     
     # Check MIME type
     mime_type = file.content_type or file.mimetype
@@ -321,11 +364,11 @@ def upload_files():
                 'path': filepath
             })
         
-        # Handle answer key (optional)
+        # Handle answer key (optional - supports PDF, TXT, MD)
         answer_key_path = None
         answer_key_file = request.files.get('answer_key')
         if answer_key_file and answer_key_file.filename:
-            ak_errors = validate_pdf(answer_key_file)
+            ak_errors = validate_answer_key(answer_key_file)
             if ak_errors:
                 return jsonify({'success': False, 'error': f'Kunci jawaban tidak valid: {" ".join(ak_errors)}'}), 400
             
@@ -388,6 +431,14 @@ def upload_files():
         
         # Convert question doc paths to JSON string for storage
         question_doc_paths_json = json.dumps(question_doc_paths_list) if question_doc_paths_list else None
+        
+        # Validate at least one reference is provided
+        has_answer_key = answer_key_path is not None
+        has_question_docs = len(question_doc_paths_list) > 0
+        has_additional_notes = additional_notes is not None and len(additional_notes.strip()) > 0
+        
+        if not has_answer_key and not has_question_docs and not has_additional_notes:
+            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, atau Catatan Tambahan.'}), 400
         
         # Create job in database
         job = Job(
@@ -479,11 +530,11 @@ def upload_single():
         job_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], job_id)
         os.makedirs(job_folder, exist_ok=True)
         
-        # Handle answer key (optional)
+        # Handle answer key (optional - supports PDF, TXT, MD)
         answer_key_path = None
         answer_key_file = request.files.get('answer_key')
         if answer_key_file and answer_key_file.filename:
-            ak_errors = validate_pdf(answer_key_file)
+            ak_errors = validate_answer_key(answer_key_file)
             if ak_errors:
                 return jsonify({'success': False, 'error': f'Kunci jawaban tidak valid: {" ".join(ak_errors)}'}), 400
             
@@ -569,6 +620,14 @@ def upload_single():
                 'file_paths': student_file_paths,
                 'is_single_processing': True
             })
+        
+        # Validate at least one reference is provided
+        has_answer_key = answer_key_path is not None
+        has_question_docs = len(question_doc_paths_list) > 0
+        has_additional_notes = additional_notes is not None and len(additional_notes.strip()) > 0
+        
+        if not has_answer_key and not has_question_docs and not has_additional_notes:
+            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, atau Catatan Tambahan.'}), 400
         
         # Create job in database
         job = Job(

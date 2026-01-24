@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif', 
                     '.tiff', '.tif', '.svg', '.ico', '.raw', '.cr2', '.nef', '.arw'}
 DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx'}
+TEXT_EXTENSIONS = {'.txt', '.md', '.markdown'}
 
 
 class DoclingService:
@@ -106,6 +107,8 @@ class DoclingService:
             return 'docx'
         elif ext in IMAGE_EXTENSIONS:
             return 'image'
+        elif ext in TEXT_EXTENSIONS:
+            return 'text'
         else:
             return 'unknown'
     
@@ -155,11 +158,25 @@ class DoclingService:
         Raises:
             Exception: If parsing fails for any reason
         """
-        # Initialize converter if needed
-        self._initialize_converter()
-        
         file_type = self._get_file_type(file_path)
         logger.info(f"Memproses dokumen ({file_type}): {file_path}")
+        
+        # Plain text files can be read directly
+        if file_type == 'text':
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                logger.info(f"File teks berhasil dibaca: {file_path} ({len(content)} karakter)")
+                return content
+            except UnicodeDecodeError:
+                # Try with latin-1 encoding as fallback
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+                logger.info(f"File teks berhasil dibaca (latin-1): {file_path} ({len(content)} karakter)")
+                return content
+        
+        # Initialize converter for non-text files
+        self._initialize_converter()
         
         # Convert document
         result = self._converter.convert(file_path)

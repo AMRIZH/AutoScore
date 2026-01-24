@@ -158,3 +158,6 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# development files
+dev/
