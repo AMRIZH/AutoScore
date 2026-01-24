@@ -25,10 +25,13 @@ def test_app():
     
     db_fd, db_path = tempfile.mkstemp(suffix='.db')
     
-    app = create_app()
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
+    test_config = {
+        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'TESTING': True,
+        'WTF_CSRF_ENABLED': False
+    }
+    
+    app = create_app(test_config=test_config)
     
     with app.app_context():
         db.create_all()

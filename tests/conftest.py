@@ -27,15 +27,16 @@ def app():
     # Set environment to disable scheduler before creating app
     os.environ['FLASK_TESTING'] = '1'
     
-    app = create_app()
-    app.config.update({
+    test_config = {
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
         'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
         'UPLOAD_FOLDER': tempfile.mkdtemp(),
         'RESULTS_FOLDER': tempfile.mkdtemp(),
         'SERVER_NAME': 'localhost',
-    })
+    }
+    
+    app = create_app(test_config=test_config)
     
     # Stop scheduler if it's running
     try:

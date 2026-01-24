@@ -71,7 +71,8 @@ class TestBulkProcessingUpload:
                     'student_files': (f, 'test_student.pdf'),
                     'score_min': '40',
                     'score_max': '100',
-                    'enable_evaluation': 'true'
+                    'enable_evaluation': 'true',
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
@@ -132,7 +133,8 @@ class TestSingleProcessingUpload:
                     'score_max': '100',
                     'enable_evaluation': 'true',
                     'students_data': json.dumps([{'fileCount': 1}]),
-                    'student_0_files': (f, 'answer.png')
+                    'student_0_files': (f, 'answer.png'),
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
@@ -172,7 +174,8 @@ class TestFileValidation:
                 data={
                     'student_files': (f, 'valid.pdf'),
                     'score_min': '40',
-                    'score_max': '100'
+                    'score_max': '100',
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
@@ -190,7 +193,8 @@ class TestFileValidation:
                     'score_min': '40',
                     'score_max': '100',
                     'students_data': json.dumps([{'fileCount': 1}]),
-                    'student_0_files': (f, 'answer.png')
+                    'student_0_files': (f, 'answer.png'),
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )

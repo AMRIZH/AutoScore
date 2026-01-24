@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 """
-Simple test runner for AutoScoring.
+AutoScoring Test Runner.
+
+This script runs the pytest suite for the AutoScoring application.
+It automatically sets the FLASK_TESTING environment variable.
 
 Usage:
-    python test.py           # Run all tests
-    python test.py -v        # Verbose mode
+    python test.py           # Run all tests with verbose output
     python test.py -k name   # Run tests matching 'name'
+    python test.py -q        # Run in quiet mode
 """
 
 import os
@@ -16,8 +19,13 @@ os.environ['FLASK_TESTING'] = '1'
 
 # Run pytest
 if __name__ == '__main__':
-    import pytest
+    try:
+        import pytest
+    except ImportError:
+        print("Error: pytest is not installed. Please run 'pip install -r requirements.txt'")
+        sys.exit(1)
     
+    # Default arguments: run all tests in 'tests/' directory, verbose, short traceback
     args = ['tests/', '-v', '--tb=short']
     
     # Add any command line arguments

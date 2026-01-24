@@ -20,7 +20,8 @@ class TestSingleProcessingIntegration:
                     'score_max': '100',
                     'enable_evaluation': 'true',
                     'students_data': json.dumps([{'fileCount': 1}]),
-                    'student_0_files': (f, 'jawaban_halaman1.png')
+                    'student_0_files': (f, 'jawaban_halaman1.png'),
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
@@ -49,7 +50,8 @@ class TestSingleProcessingIntegration:
                     'score_max': '100',
                     'enable_evaluation': 'true',
                     'students_data': json.dumps([{'fileCount': 2}]),
-                    'student_0_files': [(f1, 'page1.png'), (f2, 'page2.png')]
+                    'student_0_files': [(f1, 'page1.png'), (f2, 'page2.png')],
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
@@ -73,7 +75,8 @@ class TestSingleProcessingIntegration:
                     'score_max': '100',
                     'students_data': json.dumps([{'fileCount': 1}, {'fileCount': 1}]),
                     'student_0_files': (f1, 'student1.png'),
-                    'student_1_files': (f2, 'student2.png')
+                    'student_1_files': (f2, 'student2.png'),
+                    'additional_notes': 'Test notes'
                 },
                 content_type='multipart/form-data'
             )
