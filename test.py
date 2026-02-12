@@ -20,7 +20,7 @@ os.environ['FLASK_TESTING'] = '1'
 # Run pytest
 if __name__ == '__main__':
     try:
-        import pytest
+        import pytest  # type: ignore
     except ImportError:
         print("Error: pytest is not installed. Please run 'pip install -r requirements.txt'")
         sys.exit(1)

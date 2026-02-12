@@ -4,9 +4,6 @@
 # =============================================================================
 # Usage: docker-compose -f docker-compose.cpu.yml up -d
 # =============================================================================
-
-version: '3.8'
-
 services:
   autoscoring:
     build:
@@ -16,7 +13,7 @@ services:
     restart: unless-stopped
     
     ports:
-      - "5000:5000"
+      - "5005:5005"
     
     volumes:
       # Persist database
@@ -58,7 +55,7 @@ services:
       - GEMINI_API_KEY_20=${GEMINI_API_KEY_20}
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
+      test: ["CMD", "curl", "-f", "http://localhost:5005/login"]
       interval: 30s
       timeout: 10s
       retries: 3
