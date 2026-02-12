@@ -10,6 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask
 from werkzeug.security import generate_password_hash
+from sqlalchemy.exc import IntegrityError
 
 from app.config import Config
 from app.extensions import db, login_manager, csrf, scheduler
@@ -127,6 +128,13 @@ def seed_default_users():
     # No admin exists, create one from environment variables
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
     admin_password = os.environ.get('ADMIN_PASSWORD')
+
+    existing_username = User.query.filter_by(username=admin_username).first()
+    if existing_username is not None:
+        if existing_username.role != 'admin':
+            existing_username.role = 'admin'
+            db.session.commit()
+        return
     
     if not admin_password:
         import logging
@@ -138,7 +146,10 @@ def seed_default_users():
         role='admin'
     )
     db.session.add(admin_user)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
 
 
 def log_gpu_status(app):
