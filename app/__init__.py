@@ -70,27 +70,44 @@ def create_app(config_class=Config, test_config=None):
 
 def setup_logging(app):
     """Configure application logging."""
-    # Create logs directory if not exists
-    log_dir = os.path.join(app.root_path, '..', 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, 'autoscoring.log')
-    
-    # File handler with rotation
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=10
-    )
-    file_handler.setFormatter(logging.Formatter(
+    formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    ))
-    file_handler.setLevel(logging.INFO)
-    
-    # Add handler to app logger
-    app.logger.addHandler(file_handler)
+    )
     app.logger.setLevel(logging.INFO)
-    
+
+    log_dirs = [
+        os.path.abspath(os.path.join(app.root_path, '..', 'logs')),
+        app.instance_path,
+        '/tmp'
+    ]
+
+    file_handler_created = False
+    for log_dir in log_dirs:
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, 'autoscoring.log')
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10 * 1024 * 1024,  # 10 MB
+                backupCount=10
+            )
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(logging.INFO)
+            app.logger.addHandler(file_handler)
+            file_handler_created = True
+            break
+        except (PermissionError, OSError):
+            continue
+
+    if not file_handler_created:
+        console_fallback_handler = logging.StreamHandler()
+        console_fallback_handler.setFormatter(formatter)
+        console_fallback_handler.setLevel(logging.INFO)
+        app.logger.addHandler(console_fallback_handler)
+        app.logger.warning(
+            'Tidak dapat menulis log file. Menggunakan console logging saja.'
+        )
+
     # Also log to console in debug mode
     if app.debug:
         console_handler = logging.StreamHandler()

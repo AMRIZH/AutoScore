@@ -111,7 +111,7 @@ Gunakan opsi ini jika mesin Anda memiliki NVIDIA GPU.
     ```bash
     docker-compose up -d --build
     ```
-    *Aplikasi akan berjalan di port 5000.*
+   *Aplikasi akan berjalan di port 5005.*
 
 #### Opsi B: Versi CPU Only (Kompatibilitas Luas)
 Gunakan opsi ini jika tidak memiliki GPU khusus.
@@ -125,7 +125,7 @@ Gunakan opsi ini jika tidak memiliki GPU khusus.
     ```bash
     docker-compose -f docker-compose.cpu.yml up -d --build
     ```
-    *Aplikasi akan berjalan di port 5000.*
+   *Aplikasi akan berjalan di port 5005.*
 
 ---
 
@@ -165,7 +165,7 @@ Gunakan opsi ini jika tidak memiliki GPU khusus.
    ```
 
 6. **Akses aplikasi**
-   - Buka browser: http://localhost:5000
+   - Buka browser: http://localhost:5005
 
 ---
 

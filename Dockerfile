@@ -53,11 +53,11 @@ RUN mkdir -p uploads results logs instance && \
 USER appuser
 
 # Expose port
-EXPOSE 5000
+EXPOSE 5005
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5000/login || exit 1
+    CMD curl -f http://localhost:5005/login || exit 1
 
 # Run the application with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "300", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5005", "--workers", "4", "--timeout", "300", "run:app"]
