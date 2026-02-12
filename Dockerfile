@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-ind \
+    curl \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -49,8 +51,9 @@ COPY --chown=appuser:appuser . .
 RUN mkdir -p uploads results logs instance && \
     chown -R appuser:appuser uploads results logs instance
 
-# Switch to non-root user
-USER appuser
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Expose port
 EXPOSE 5005
@@ -59,5 +62,6 @@ EXPOSE 5005
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5005/login || exit 1
 
-# Run the application with Gunicorn
+# Entrypoint fixes volume permissions then drops to appuser
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:5005", "--workers", "4", "--timeout", "300", "run:app"]
