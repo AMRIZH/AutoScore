@@ -52,6 +52,19 @@ class Config:
         if key:
             GEMINI_API_KEYS.append(key)
     
+    # LLM provider settings
+    LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'gemini')  # gemini | nvidia | openai
+    _LLM_MODEL_DEFAULTS = {
+        'gemini': 'gemini-2.5-flash',
+        'nvidia': 'moonshotai/kimi-k2.5',
+        'openai': 'gpt-4.1',
+    }
+    LLM_MODEL = os.environ.get('LLM_MODEL') or _LLM_MODEL_DEFAULTS.get(LLM_PROVIDER, 'gemini-2.5-flash')
+    NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY') or None
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or None
+    NVIDIA_BASE_URL = os.environ.get('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
+    OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+
     # GPU settings (auto-detected)
     GPU_AVAILABLE = False
     GPU_NAME = None
@@ -62,3 +75,16 @@ class Config:
         # Create upload and results directories
         os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
         os.makedirs(Config.RESULTS_FOLDER, exist_ok=True)
+
+        # Validate LLM provider API key requirements
+        provider = app.config.get('LLM_PROVIDER', 'gemini')
+        if provider == 'nvidia' and not app.config.get('NVIDIA_API_KEY'):
+            app.logger.warning(
+                'LLM_PROVIDER is set to "nvidia" but NVIDIA_API_KEY is not configured. '
+                'Set it in .env or Admin Panel before running scoring jobs.'
+            )
+        elif provider == 'openai' and not app.config.get('OPENAI_API_KEY'):
+            app.logger.warning(
+                'LLM_PROVIDER is set to "openai" but OPENAI_API_KEY is not configured. '
+                'Set it in .env or Admin Panel before running scoring jobs.'
+            )

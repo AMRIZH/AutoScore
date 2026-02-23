@@ -45,35 +45,35 @@ class ScoringService:
         
         # Initialize services lazily
         self._docling_service = None
-        self._gemini_service = None
+        self._llm_service = None
+        self._docling_lock = threading.Lock()
+        self._llm_lock = threading.Lock()
         
         # Queue for database updates (thread-safe)
         self._db_update_queue = Queue()
     
     @property
     def docling_service(self):
-        """Lazy initialization of Docling service."""
+        """Lazy initialization of Docling service (thread-safe)."""
         if self._docling_service is None:
-            from app.services.docling_service import DoclingService
-            self._docling_service = DoclingService(
-                enable_ocr=self.config.get('ENABLE_OCR', True),
-                use_gpu=True  # Auto-detect
-            )
+            with self._docling_lock:
+                if self._docling_service is None:
+                    from app.services.docling_service import DoclingService
+                    self._docling_service = DoclingService(
+                        enable_ocr=self.config.get('ENABLE_OCR', True),
+                        use_gpu=True  # Auto-detect
+                    )
         return self._docling_service
     
     @property
-    def gemini_service(self):
-        """Lazy initialization of Gemini service."""
-        if self._gemini_service is None:
-            from app.services.gemini_service import GeminiService
-            api_keys = self.config.get('GEMINI_API_KEYS', [])
-            if not api_keys:
-                raise RuntimeError("Tidak ada API key Gemini yang dikonfigurasi")
-            self._gemini_service = GeminiService(
-                api_keys=api_keys,
-                max_retries=self.max_retries
-            )
-        return self._gemini_service
+    def llm_service(self):
+        """Lazy initialization of unified LLM service (thread-safe)."""
+        if self._llm_service is None:
+            with self._llm_lock:
+                if self._llm_service is None:
+                    from app.services.llm_service import LLMService
+                    self._llm_service = LLMService(self.config)
+        return self._llm_service
     
     def start_scoring(
         self,
@@ -433,7 +433,7 @@ class ScoringService:
         score_start = time.time()
         logger.debug(f"[{thread_name}] [LLM] Menilai dengan LLM: {filename}")
         
-        result = self.gemini_service.score_report(
+        result = self.llm_service.score_report(
             student_content=student_content,
             answer_key_content=answer_key_content,
             question_content=question_content,

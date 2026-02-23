@@ -1,0 +1,319 @@
+{% extends 'admin/master.html' %}
+{% block title %}Pengaturan LLM - AutoScoring Admin{% endblock %}
+
+{% block head_css %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+.provider-section { display: none; }
+.provider-section.active { display: block; }
+.model-list-item { cursor: pointer; }
+.model-list-item:hover { background-color: #f8f9fa; }
+#modelFetchSpinner { display: none; }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-robot"></i> Pengaturan LLM
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Catatan:</strong> Pengaturan ini disimpan di database dan berlaku permanen (tidak reset saat restart).
+                    </div>
+
+                    <form method="POST" action="{{ url_for('llm_settings.index') }}" id="llmForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <!-- Provider Selection -->
+                        <h5 class="mt-3 mb-3">
+                            <i class="bi bi-cloud"></i> Provider LLM
+                        </h5>
+                        <div class="mb-3">
+                            <select class="form-select" name="llm_provider" id="llmProvider">
+                                <option value="gemini" {% if llm_config.provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                                <option value="nvidia" {% if llm_config.provider == 'nvidia' %}selected{% endif %}>NVIDIA Build</option>
+                                <option value="openai" {% if llm_config.provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                            </select>
+                        </div>
+
+                        <!-- Gemini Section -->
+                        <div class="provider-section" id="section-gemini">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> API Keys Gemini</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Keys</strong> (satu per baris, maks 20)</label>
+                                <textarea class="form-control" name="gemini_api_keys" id="geminiApiKeys"
+                                    rows="6" placeholder="AIzaSy...&#10;AIzaSy...">{{ llm_config.gemini_api_keys }}</textarea>
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.
+                                    Mendukung round-robin untuk menghindari rate limit.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- NVIDIA Section -->
+                        <div class="provider-section" id="section-nvidia">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> NVIDIA Build API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="nvidia_api_key" id="nvidiaApiKey"
+                                    value="{{ llm_config.nvidia_api_key }}" placeholder="nvapi-...">
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://build.nvidia.com" target="_blank">NVIDIA Build</a>.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="nvidia_base_url" id="nvidiaBaseUrl"
+                                    value="{{ llm_config.nvidia_base_url }}" placeholder="https://integrate.api.nvidia.com/v1">
+                            </div>
+                        </div>
+
+                        <!-- OpenAI Section -->
+                        <div class="provider-section" id="section-openai">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> OpenAI API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="openai_api_key" id="openaiApiKey"
+                                    value="{{ llm_config.openai_api_key }}" placeholder="sk-...">
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="openai_base_url" id="openaiBaseUrl"
+                                    value="{{ llm_config.openai_base_url }}" placeholder="https://api.openai.com/v1">
+                            </div>
+                        </div>
+
+                        <!-- Model Selection -->
+                        <hr class="my-4">
+                        <h5 class="mb-3"><i class="bi bi-cpu"></i> Model</h5>
+
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label"><strong>Nama Model</strong></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="llm_model" id="llmModel"
+                                        value="{{ llm_config.model }}" placeholder="contoh: gemini-2.5-flash">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnFetchModels">
+                                        <span id="modelFetchSpinner" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                        <i class="bi bi-arrow-repeat" id="modelFetchIcon"></i>
+                                        Ambil Daftar Model
+                                    </button>
+                                </div>
+                                <small class="text-muted">Ketik manual atau klik "Ambil Daftar Model" untuk memilih dari API.</small>
+                            </div>
+                        </div>
+
+                        <!-- Model list (populated via JS) -->
+                        <div id="modelListContainer" class="mb-3" style="display:none;">
+                            <label class="form-label"><strong>Model Tersedia</strong></label>
+                            <div id="modelList" class="list-group" style="max-height: 250px; overflow-y: auto;"></div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Simpan Pengaturan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-activity"></i> Status Aktif</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td><strong>Provider:</strong></td>
+                            <td><span class="badge bg-primary" id="statusProvider">{{ llm_config.provider|upper }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Model:</strong></td>
+                            <td><code id="statusModel">{{ llm_config.model }}</code></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-question-circle"></i> Bantuan</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Google Gemini</h6>
+                    <p class="small text-muted">
+                        Mendukung hingga 20 API key dengan rotasi otomatis.
+                        Model default: <code>gemini-2.5-flash</code>
+                    </p>
+
+                    <h6>NVIDIA Build</h6>
+                    <p class="small text-muted">
+                        API kompatibel OpenAI. Banyak model open-source tersedia.
+                        Model default: <code>moonshotai/kimi-k2.5</code>
+                    </p>
+
+                    <h6>OpenAI</h6>
+                    <p class="small text-muted">
+                        API resmi OpenAI.
+                        Model default: <code>gpt-4.1</code>
+                    </p>
+
+                    <hr>
+
+                    <div class="alert alert-warning small mb-0">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Pastikan model yang dipilih mendukung output JSON.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const providerSelect = document.getElementById('llmProvider');
+    const modelInput = document.getElementById('llmModel');
+    const btnFetch = document.getElementById('btnFetchModels');
+    const modelListContainer = document.getElementById('modelListContainer');
+    const modelList = document.getElementById('modelList');
+    const spinner = document.getElementById('modelFetchSpinner');
+    const fetchIcon = document.getElementById('modelFetchIcon');
+
+    const defaultModels = {
+        'gemini': 'gemini-2.5-flash',
+        'nvidia': 'moonshotai/kimi-k2.5',
+        'openai': 'gpt-4.1'
+    };
+
+    function showProviderSection() {
+        document.querySelectorAll('.provider-section').forEach(s => s.classList.remove('active'));
+        const active = document.getElementById('section-' + providerSelect.value);
+        if (active) active.classList.add('active');
+    }
+
+    providerSelect.addEventListener('change', function() {
+        showProviderSection();
+        // Set default model when switching providers
+        modelInput.value = defaultModels[this.value] || '';
+        modelListContainer.style.display = 'none';
+    });
+
+    // Init
+    showProviderSection();
+
+    // Fetch models
+    btnFetch.addEventListener('click', function() {
+        const provider = providerSelect.value;
+        let apiKey = '';
+        let baseUrl = '';
+
+        if (provider === 'gemini') {
+            const keys = document.getElementById('geminiApiKeys').value.trim().split('\n').filter(k => k.trim());
+            apiKey = keys[0] || '';
+        } else if (provider === 'nvidia') {
+            apiKey = document.getElementById('nvidiaApiKey').value.trim();
+            baseUrl = document.getElementById('nvidiaBaseUrl').value.trim();
+        } else if (provider === 'openai') {
+            apiKey = document.getElementById('openaiApiKey').value.trim();
+            baseUrl = document.getElementById('openaiBaseUrl').value.trim();
+        }
+
+        if (!apiKey) {
+            alert('Masukkan API key terlebih dahulu.');
+            return;
+        }
+
+        spinner.style.display = 'inline-block';
+        fetchIcon.style.display = 'none';
+        btnFetch.disabled = true;
+        modelList.innerHTML = '';
+        modelListContainer.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('csrf_token', document.querySelector('[name=csrf_token]').value);
+        formData.append('provider', provider);
+        formData.append('api_key', apiKey);
+        formData.append('base_url', baseUrl);
+
+        fetch('{{ url_for("llm_settings.fetch_models") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => {
+            if (!r.ok) {
+                return r.text().then(t => { throw new Error('Server error: ' + r.status); });
+            }
+            return r.json();
+        })
+        .then(data => {
+            spinner.style.display = 'none';
+            fetchIcon.style.display = 'inline-block';
+            btnFetch.disabled = false;
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            if (!data.models || data.models.length === 0) {
+                alert('Tidak ada model yang ditemukan.');
+                return;
+            }
+
+            data.models.forEach(m => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action model-list-item d-flex justify-content-between align-items-center';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = m.id;
+                item.appendChild(nameSpan);
+
+                if (m.owned_by) {
+                    const ownerSmall = document.createElement('small');
+                    ownerSmall.className = 'text-muted';
+                    ownerSmall.textContent = m.owned_by;
+                    item.appendChild(ownerSmall);
+                }
+
+                item.addEventListener('click', function() {
+                    modelInput.value = m.id;
+                    document.querySelectorAll('.model-list-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                });
+                modelList.appendChild(item);
+            });
+
+            modelListContainer.style.display = 'block';
+        })
+        .catch(err => {
+            spinner.style.display = 'none';
+            fetchIcon.style.display = 'inline-block';
+            btnFetch.disabled = false;
+            alert('Gagal mengambil daftar model: ' + err.message);
+        });
+    });
+});
+</script>
+{% endblock %}

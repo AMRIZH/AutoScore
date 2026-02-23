@@ -28,7 +28,7 @@
 
 ## 📖 Tentang AutoScoring
 
-AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM) Google Gemini 2.5 Flash.
+AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM). Mendukung multi-provider: Google Gemini, NVIDIA Build, dan OpenAI — dapat dipilih melalui Admin Panel.
 
 ### Mengapa AutoScoring?
 
@@ -53,9 +53,9 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 | 📂 **Format Fleksibel** | Dukungan teks (TXT, MD) dan gambar untuk soal/kunci jawaban |
 | 🔑 **Kunci Jawaban & Soal** | Upload kunci jawaban dan soal sebagai referensi penilaian (wajib min. 1) |
 | 💬 **Catatan Tambahan** | Instruksi khusus untuk panduan penilaian LLM |
-| 🤖 **Penilaian AI** | Google Gemini 2.5 Flash untuk analisis dan penilaian mendalam |
+| 🤖 **Multi-Provider AI** | Google Gemini, NVIDIA Build, dan OpenAI — pilih via Admin Panel |
 | 📊 **Export CSV** | Hasil penilaian lengkap dalam format CSV |
-| 🔄 **Round-Robin API** | Rotasi 20 API key untuk menghindari rate limit |
+| 🔄 **Round-Robin API** | Rotasi hingga 20 API key Gemini untuk menghindari rate limit |
 | 🖥️ **GPU Acceleration** | Akselerasi GPU untuk parsing dokumen dengan Docling + EasyOCR |
 | 🔒 **Role Management** | Sistem login aman dengan role Admin dan Aslab |
 | ⚙️ **Admin Panel** | Manajemen pengguna, statistik, dan pengaturan runtime |
@@ -68,7 +68,7 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 |----------|-----------|
 | Backend | Flask 3.0+, SQLAlchemy, Flask-Login, Flask-Admin |
 | PDF Parser | Docling (IBM), EasyOCR |
-| AI/LLM | Google Gemini 2.5 Flash |
+| AI/LLM | Google Gemini, NVIDIA Build, OpenAI (multi-provider) |
 | Database | SQLite3 |
 | Frontend | Bootstrap 5, Dropzone.js |
 | Deployment | Docker (GPU/CPU), Gunicorn |
@@ -171,16 +171,33 @@ Gunakan opsi ini jika tidak memiliki GPU khusus.
 
 ## ⚙️ Konfigurasi
 
-### API Key Gemini
+### LLM Provider
 
-1. Buka [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Buat API key baru
-3. Masukkan ke file `.env` (dukung hingga 20 key untuk rotasi):
-   ```
-   GEMINI_API_KEY_1=your-api-key-here
-   GEMINI_API_KEY_2=your-second-api-key
-   ...
-   ```
+AutoScoring mendukung 3 provider LLM. Konfigurasi awal via `.env`, selanjutnya dapat diubah melalui **Admin Panel > Pengaturan LLM**.
+
+| Provider | Default Model | Cara Dapat API Key |
+|----------|--------------|--------------------|
+| Google Gemini | `gemini-2.5-flash` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| NVIDIA Build | `moonshotai/kimi-k2.5` | [NVIDIA Build](https://build.nvidia.com) |
+| OpenAI | `gpt-4.1` | [OpenAI Platform](https://platform.openai.com/api-keys) |
+
+Konfigurasi `.env`:
+```
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+
+# Gemini (dukung hingga 20 key round-robin)
+GEMINI_API_KEY_1=your-key
+GEMINI_API_KEY_2=your-second-key
+
+# NVIDIA Build
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
 
 ### Konfigurasi Runtime (.env)
 

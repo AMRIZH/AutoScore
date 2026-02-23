@@ -9,6 +9,37 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db, login_manager
 
 
+class LLMConfig(db.Model):
+    """Key-value store for LLM configuration (persists across restarts)."""
+
+    __tablename__ = 'llm_config'
+
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get(cls, key, default=None):
+        """Get a config value by key."""
+        row = cls.query.get(key)
+        return row.value if row else default
+
+    @classmethod
+    def set(cls, key, value):
+        """Set a config value (insert or update) using merge for atomicity."""
+        instance = cls(key=key, value=value, updated_at=datetime.utcnow())
+        db.session.merge(instance)
+        db.session.commit()
+
+    @classmethod
+    def get_all(cls):
+        """Return all config as a dict."""
+        return {r.key: r.value for r in cls.query.all()}
+
+    def __repr__(self):
+        return f'<LLMConfig {self.key}>'
+
+
 class User(UserMixin, db.Model):
     """User model for authentication."""
     

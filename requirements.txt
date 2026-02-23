@@ -29,6 +29,9 @@ huggingface_hub[hf_xet]>=0.20.0
 # LLM - Google Gemini
 google-genai>=0.3.0
 
+# LLM - OpenAI / NVIDIA Build (OpenAI-compatible)
+openai>=1.30.0,<3.0.0
+
 # Production server
 gunicorn>=21.0.0
 

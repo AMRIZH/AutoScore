@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash
 from flask_wtf import FlaskForm
 
 from app.extensions import db
-from app.models import User, Job, JobResult, SystemLog
+from app.models import User, Job, JobResult, SystemLog, LLMConfig
 
 
 class SecureAdminIndexView(AdminIndexView):
@@ -34,6 +34,14 @@ class SecureAdminIndexView(AdminIndexView):
             'enable_ocr': current_app.config.get('ENABLE_OCR', True),
             'max_workers': current_app.config.get('MAX_WORKERS', 4)
         }
+
+        # LLM status
+        try:
+            from app.services.llm_service import LLMService
+            llm_svc = LLMService(current_app.config)
+            system_info['llm_status'] = llm_svc.get_status()
+        except Exception:
+            system_info['llm_status'] = {'provider': 'N/A', 'model': 'N/A'}
         
         stats = {
             'total_users': User.query.count(),
@@ -239,6 +247,133 @@ class SettingsView(BaseView):
         return redirect(url_for('auth.login', next=request.url))
 
 
+class LLMSettingsView(BaseView):
+    """Admin view for LLM provider configuration."""
+
+    @expose('/', methods=['GET', 'POST'])
+    def index(self) -> Union[Response, str]:
+        import json as json_module
+        from flask import current_app, jsonify
+
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash('Anda tidak memiliki akses ke halaman admin.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        if request.method == 'POST':
+            provider = request.form.get('llm_provider', 'gemini')
+            model = request.form.get('llm_model', '').strip()
+
+            # Validate provider
+            if provider not in ('gemini', 'nvidia', 'openai'):
+                flash('Provider LLM tidak valid.', 'danger')
+                return redirect(url_for('llm_settings.index'))
+
+            try:
+                LLMConfig.set('llm_provider', provider)
+                LLMConfig.set('llm_model', model)
+
+                if provider == 'gemini':
+                    keys_text = request.form.get('gemini_api_keys', '').strip()
+                    keys = [k.strip() for k in keys_text.splitlines() if k.strip()]
+                    LLMConfig.set('gemini_api_keys', json_module.dumps(keys))
+                elif provider == 'nvidia':
+                    LLMConfig.set('nvidia_api_key', request.form.get('nvidia_api_key', '').strip())
+                    LLMConfig.set('nvidia_base_url', request.form.get('nvidia_base_url', '').strip() or 'https://integrate.api.nvidia.com/v1')
+                elif provider == 'openai':
+                    LLMConfig.set('openai_api_key', request.form.get('openai_api_key', '').strip())
+                    LLMConfig.set('openai_base_url', request.form.get('openai_base_url', '').strip() or 'https://api.openai.com/v1')
+
+                SystemLog.log(
+                    'INFO', 'LLM_SETTINGS',
+                    f'LLM settings updated: provider={provider}, model={model}',
+                    user_id=current_user.id,
+                )
+                flash('Pengaturan LLM berhasil disimpan!', 'success')
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.exception('Failed to save LLM settings: %s', e)
+                flash('Gagal menyimpan pengaturan. Silakan coba lagi atau hubungi admin.', 'danger')
+
+            return redirect(url_for('llm_settings.index'))
+
+        # GET — load current config
+        cfg = LLMConfig.get_all()
+        gemini_keys = []
+        gemini_keys_json = cfg.get('gemini_api_keys')
+        if gemini_keys_json:
+            try:
+                gemini_keys = json_module.loads(gemini_keys_json)
+            except (json_module.JSONDecodeError, TypeError):
+                gemini_keys = []
+
+        # Fall back to env keys if DB is empty
+        if not gemini_keys:
+            gemini_keys = list(current_app.config.get('GEMINI_API_KEYS', []))
+
+        def _cfg_val(db_val, env_key, default=''):
+            """Return DB value if not None, else fall back to env config."""
+            if db_val is not None:
+                return db_val
+            return current_app.config.get(env_key, default)
+
+        llm_config = {
+            'provider': _cfg_val(cfg.get('llm_provider'), 'LLM_PROVIDER', 'gemini'),
+            'model': _cfg_val(cfg.get('llm_model'), 'LLM_MODEL', 'gemini-2.5-flash'),
+            'gemini_api_keys': '\n'.join(gemini_keys),
+            'nvidia_api_key': _cfg_val(cfg.get('nvidia_api_key'), 'NVIDIA_API_KEY', ''),
+            'nvidia_base_url': _cfg_val(cfg.get('nvidia_base_url'), 'NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1'),
+            'openai_api_key': _cfg_val(cfg.get('openai_api_key'), 'OPENAI_API_KEY', ''),
+            'openai_base_url': _cfg_val(cfg.get('openai_base_url'), 'OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        }
+
+        return self.render('admin/llm_settings.html', llm_config=llm_config)
+
+    @expose('/fetch-models', methods=['POST'])
+    def fetch_models(self) -> Response:
+        """AJAX endpoint to fetch available models from a provider."""
+        from flask import jsonify, current_app
+        from urllib.parse import urlparse
+
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        provider = request.form.get('provider', '')
+        api_key = request.form.get('api_key', '').strip()
+        base_url = request.form.get('base_url', '').strip()
+
+        if not api_key:
+            return jsonify({'error': 'API key diperlukan'}), 400
+
+        # Validate base_url against allowed provider hostnames
+        ALLOWED_HOSTS = {
+            'integrate.api.nvidia.com',
+            'api.openai.com',
+            'generativelanguage.googleapis.com',
+        }
+        if base_url:
+            try:
+                parsed = urlparse(base_url)
+                if parsed.hostname not in ALLOWED_HOSTS:
+                    return jsonify({'error': 'Base URL tidak diizinkan'}), 400
+            except Exception:
+                return jsonify({'error': 'Base URL tidak valid'}), 400
+
+        try:
+            from app.services.llm_service import LLMService
+            models = LLMService.fetch_available_models(provider, api_key, base_url)
+            return jsonify({'models': models})
+        except Exception as e:
+            current_app.logger.exception('Failed to fetch models: %s', e)
+            return jsonify({'error': 'Gagal mengambil daftar model dari provider'}), 500
+
+    def is_accessible(self) -> bool:
+        return current_user.is_authenticated and current_user.is_admin
+
+    def inaccessible_callback(self, name: str, **kwargs) -> Response:
+        flash('Anda tidak memiliki akses ke halaman admin.', 'danger')
+        return redirect(url_for('auth.login', next=request.url))
+
+
 def setup_admin(app):
     """Setup Flask-Admin with custom views."""
     from flask_admin import Admin
@@ -256,5 +391,6 @@ def setup_admin(app):
     admin.add_view(JobResultModelView(JobResult, db.session, name='Hasil Penilaian', category='Data'))
     admin.add_view(SystemLogModelView(SystemLog, db.session, name='Log Sistem', category='Sistem'))
     admin.add_view(SettingsView(name='Pengaturan', endpoint='settings', category='Sistem'))
+    admin.add_view(LLMSettingsView(name='Pengaturan LLM', endpoint='llm_settings', category='Sistem'))
     
     return admin
