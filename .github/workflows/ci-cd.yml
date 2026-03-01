@@ -82,7 +82,7 @@ jobs:
           # 2) Base64 of the full key file content
           # 3) OpenSSH payload body only (starts with b3BlbnNzaC1rZXkt...)
           raw_key='${{ secrets.VPS_SSH_KEY }}'
-          normalized="$(printf '%s' "${raw_key}" | tr -d '\r')"
+          normalized="$(printf '%s' "${raw_key}" | perl -pe 's/\\n/\n/g' | tr -d '\r')"
           compact="$(printf '%s' "${normalized}" | tr -d '\n\t ')"
 
           if printf '%s' "${normalized}" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
