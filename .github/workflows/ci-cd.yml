@@ -77,8 +77,17 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
 
-          # Normalize line endings from secrets (Windows CRLF can break key parsing).
-          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
+          # Accept either full OpenSSH private key text or base64-encoded key content.
+          raw_key='${{ secrets.VPS_SSH_KEY }}'
+          if printf '%s' "${raw_key}" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            printf '%s' "${raw_key}" | tr -d '\r' > ~/.ssh/id_ed25519
+          else
+            # Remove whitespace/newlines before decode to support pasted one-line base64.
+            if ! printf '%s' "${raw_key}" | tr -d '\r\n\t ' | base64 -d > ~/.ssh/id_ed25519 2>/dev/null; then
+              echo "Invalid VPS_SSH_KEY. Provide full OpenSSH private key (recommended) or valid base64-encoded private key content."
+              exit 1
+            fi
+          fi
           chmod 600 ~/.ssh/id_ed25519
 
           # Validate key format early to avoid opaque SSH/libcrypto errors.
