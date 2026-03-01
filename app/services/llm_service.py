@@ -10,6 +10,7 @@ import time
 import threading
 from typing import Optional, Dict, Any, List, cast
 from itertools import cycle
+from urllib.parse import urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ DEFAULT_BASE_URLS = {
     'deepseek': 'https://api.deepseek.com/v1',
     'openrouter': 'https://openrouter.ai/api/v1',
     'siliconflow': 'https://api.siliconflow.cn/v1',
-    'github': 'https://models.inference.ai.azure.com',
+    'github': 'https://models.github.ai/inference',
 }
 
 OPENAI_COMPAT_PROVIDERS = (
@@ -269,7 +270,7 @@ class LLMService:
             return LLMService._fetch_gemini_models(api_key)
         elif provider in OPENAI_COMPAT_PROVIDERS:
             effective_base = base_url or DEFAULT_BASE_URLS.get(provider, '')
-            return LLMService._fetch_openai_compat_models(api_key, effective_base)
+            return LLMService._fetch_openai_compat_models(provider, api_key, effective_base)
         else:
             raise ValueError(f"Provider tidak dikenal: {provider}")
 
@@ -282,7 +283,29 @@ class LLMService:
         base_url = cfg.get(base_field, '') if base_field else ''
         if not base_url:
             base_url = DEFAULT_BASE_URLS.get(provider, '')
+        base_url = LLMService._normalize_openai_compat_base_url(provider, base_url)
         return api_key, base_url
+
+    @staticmethod
+    def _normalize_openai_compat_base_url(provider: str, base_url: str) -> str:
+        """Normalize provider base URL for known endpoint quirks."""
+        normalized = (base_url or '').strip().rstrip('/')
+        if not normalized:
+            return normalized
+
+        if provider != 'github':
+            return normalized
+
+        parsed = urlparse(normalized)
+        host = (parsed.hostname or '').lower()
+        path = parsed.path.rstrip('/')
+
+        # GitHub Models endpoint expects /inference path, not /v1.
+        if host == 'models.github.ai' and path in ('', '/v1'):
+            parsed = parsed._replace(path='/inference', query=parsed.query, fragment=parsed.fragment)
+            return urlunparse(parsed).rstrip('/')
+
+        return normalized
 
     # ------------------------------------------------------------------
     # Gemini backend
@@ -500,17 +523,84 @@ class LLMService:
         return models
 
     @staticmethod
-    def _fetch_openai_compat_models(api_key: str, base_url: str) -> List[Dict[str, str]]:
+    def _fetch_openai_compat_models(provider: str, api_key: str, base_url: str) -> List[Dict[str, str]]:
+        base_url = LLMService._normalize_openai_compat_base_url(provider, base_url)
         from openai import OpenAI
         client = OpenAI(api_key=api_key, base_url=base_url)
-        resp = client.models.list()
-        models = []
-        for m in resp.data:
-            models.append({
-                'id': m.id,
-                'owned_by': getattr(m, 'owned_by', ''),
-            })
-        return sorted(models, key=lambda x: x['id'])
+
+        try:
+            resp = client.models.list()
+            models = []
+            for m in resp.data:
+                models.append({
+                    'id': m.id,
+                    'owned_by': getattr(m, 'owned_by', ''),
+                })
+            return sorted(models, key=lambda x: x['id'])
+        except Exception as e:
+            if provider != 'github':
+                raise
+            logger.warning("[GITHUB] OpenAI-style /models listing failed, using HTTP fallback: %s", e)
+            return LLMService._fetch_github_models_fallback(api_key, base_url)
+
+    @staticmethod
+    def _fetch_github_models_fallback(api_key: str, base_url: str) -> List[Dict[str, str]]:
+        """Fallback model listing for GitHub Models endpoints with non-standard paths."""
+        import requests
+
+        base = base_url.rstrip('/')
+        candidate_urls = [
+            f"{base}/models",
+            f"{base}/v1/models",
+        ]
+        if base.endswith('/inference'):
+            candidate_urls.append(f"{base[:-len('/inference')]}/models")
+
+        seen = set()
+        errors = []
+
+        def request_with_auth_retry(url: str):
+            """Try Authorization first, then retry with api-key on auth failures."""
+            auth_headers = {'Authorization': f'Bearer {api_key}'}
+            response = requests.get(url, headers=auth_headers, timeout=20)
+            if response.status_code not in (401, 403):
+                return response
+
+            key_headers = {'api-key': api_key}
+            return requests.get(url, headers=key_headers, timeout=20)
+
+        for url in candidate_urls:
+            if url in seen:
+                continue
+            seen.add(url)
+            try:
+                response = request_with_auth_retry(url)
+                if not response.ok:
+                    errors.append(f"{url} => HTTP {response.status_code}")
+                    continue
+
+                payload = response.json()
+                data = payload.get('data') if isinstance(payload, dict) else payload
+                if not isinstance(data, list):
+                    errors.append(f"{url} => format respons tidak dikenali")
+                    continue
+
+                models = []
+                for item in data:
+                    if not isinstance(item, dict) or 'id' not in item:
+                        continue
+                    models.append({
+                        'id': str(item['id']),
+                        'owned_by': str(item.get('owned_by', item.get('publisher', 'github'))),
+                    })
+                if models:
+                    return sorted(models, key=lambda x: x['id'])
+                errors.append(f"{url} => daftar model kosong")
+            except Exception as ex:
+                errors.append(f"{url} => {ex}")
+
+        detail = '; '.join(errors) if errors else 'Tidak ada endpoint model yang berhasil diakses'
+        raise RuntimeError(f"Gagal mengambil daftar model GitHub: {detail}")
 
     # ------------------------------------------------------------------
     # Prompt helpers

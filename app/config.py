@@ -75,7 +75,7 @@ class Config:
     DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
     OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
     SILICONFLOW_BASE_URL = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
-    GITHUB_BASE_URL = os.environ.get('GITHUB_BASE_URL', 'https://models.inference.ai.azure.com')
+    GITHUB_BASE_URL = os.environ.get('GITHUB_BASE_URL', 'https://models.github.ai/inference')
 
     # GPU settings (auto-detected)
     GPU_AVAILABLE = False

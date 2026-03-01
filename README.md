@@ -216,7 +216,7 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
 # GitHub Models
 GITHUB_API_KEY=ghp_... atau github_pat_...
-GITHUB_BASE_URL=https://models.inference.ai.azure.com
+GITHUB_BASE_URL=https://models.github.ai/inference
 ```
 
 ### Konfigurasi Runtime (.env)

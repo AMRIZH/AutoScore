@@ -80,7 +80,7 @@ services:
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL:-https://api.siliconflow.cn/v1}
       - GITHUB_API_KEY=${GITHUB_API_KEY}
-      - GITHUB_BASE_URL=${GITHUB_BASE_URL:-https://models.inference.ai.azure.com}
+      - GITHUB_BASE_URL=${GITHUB_BASE_URL:-https://models.github.ai/inference}
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5005/login"]

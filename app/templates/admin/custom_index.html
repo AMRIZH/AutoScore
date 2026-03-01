@@ -157,6 +157,20 @@
                             </a>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <a href="{{ url_for('settings.index') }}" class="btn btn-outline-warning w-100" data-bs-toggle="tooltip" title="Atur parameter runtime seperti OCR, cleanup, dan batas file.">
+                                <i class="bi bi-gear-wide-connected d-block mb-2" style="font-size: 2rem;"></i>
+                                Pengaturan Runtime
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('llm_settings.index') }}" class="btn btn-outline-info w-100" data-bs-toggle="tooltip" title="Atur provider LLM, API key, base URL, dan model aktif.">
+                                <i class="bi bi-robot d-block mb-2" style="font-size: 2rem;"></i>
+                                Pengaturan LLM
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

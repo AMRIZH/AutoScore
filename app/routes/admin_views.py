@@ -24,7 +24,7 @@ OPENAI_COMPAT_PROVIDER_FIELDS = {
     'deepseek': ('deepseek_api_key', 'deepseek_base_url', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
     'openrouter': ('openrouter_api_key', 'openrouter_base_url', 'OPENROUTER_API_KEY', 'OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
     'siliconflow': ('siliconflow_api_key', 'siliconflow_base_url', 'SILICONFLOW_API_KEY', 'SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1'),
-    'github': ('github_api_key', 'github_base_url', 'GITHUB_API_KEY', 'GITHUB_BASE_URL', 'https://models.inference.ai.azure.com'),
+    'github': ('github_api_key', 'github_base_url', 'GITHUB_API_KEY', 'GITHUB_BASE_URL', 'https://models.github.ai/inference'),
 }
 
 ALLOWED_HOSTS_BY_PROVIDER = {
@@ -34,7 +34,7 @@ ALLOWED_HOSTS_BY_PROVIDER = {
     'deepseek': {'api.deepseek.com'},
     'openrouter': {'openrouter.ai'},
     'siliconflow': {'api.siliconflow.cn'},
-    'github': {'models.inference.ai.azure.com'},
+    'github': {'models.github.ai', 'models.inference.ai.azure.com'},
 }
 
 
@@ -389,7 +389,7 @@ class LLMSettingsView(BaseView):
             'siliconflow_api_key': _cfg_val(cfg.get('siliconflow_api_key'), 'SILICONFLOW_API_KEY', ''),
             'siliconflow_base_url': _cfg_val(cfg.get('siliconflow_base_url'), 'SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1'),
             'github_api_key': _cfg_val(cfg.get('github_api_key'), 'GITHUB_API_KEY', ''),
-            'github_base_url': _cfg_val(cfg.get('github_base_url'), 'GITHUB_BASE_URL', 'https://models.inference.ai.azure.com'),
+            'github_base_url': _cfg_val(cfg.get('github_base_url'), 'GITHUB_BASE_URL', 'https://models.github.ai/inference'),
         }
 
         return self.render('admin/llm_settings.html', llm_config=llm_config)

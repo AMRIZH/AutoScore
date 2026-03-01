@@ -166,7 +166,7 @@
                             <div class="mb-3">
                                 <label class="form-label"><strong>Base URL</strong></label>
                                 <input type="url" class="form-control" name="github_base_url" id="githubBaseUrl"
-                                    value="{{ llm_config.github_base_url }}" placeholder="https://models.inference.ai.azure.com">
+                                    value="{{ llm_config.github_base_url }}" placeholder="https://models.github.ai/inference">
                             </div>
                         </div>
 
@@ -427,7 +427,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(r => {
             if (!r.ok) {
-                return r.text().then(t => { throw new Error('Server error: ' + r.status); });
+                return r.json().catch(() => null)
+                    .then(payload => {
+                        throw new Error((payload && payload.error) || ('Server error: ' + r.status));
+                    });
             }
             return r.json();
         })

@@ -85,7 +85,7 @@ def test_fetch_models_success_for_github(auth_client, monkeypatch):
         data={
             'provider': 'github',
             'api_key': 'github_pat_test',
-            'base_url': 'https://models.inference.ai.azure.com',
+            'base_url': 'https://models.github.ai/inference',
         },
     )
 

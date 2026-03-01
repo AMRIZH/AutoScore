@@ -68,6 +68,6 @@ def test_github_provider_uses_defaults_and_status(app):
 
         assert cfg['provider'] == 'github'
         assert cfg['model'] == 'openai/gpt-4.1-mini'
-        assert cfg['github_base_url'] == 'https://models.inference.ai.azure.com'
+        assert cfg['github_base_url'] == 'https://models.github.ai/inference'
         assert status['provider'] == 'github'
         assert status['has_api_key'] is True
