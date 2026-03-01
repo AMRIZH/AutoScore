@@ -77,17 +77,54 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
 
-          # Accept either full OpenSSH private key text or base64-encoded key content.
+          # Accept one of the following VPS_SSH_KEY formats:
+          # 1) Full OpenSSH private key text (BEGIN/END, multiline)
+          # 2) Base64 of the full key file content
+          # 3) OpenSSH payload body only (starts with b3BlbnNzaC1rZXkt...)
           raw_key='${{ secrets.VPS_SSH_KEY }}'
-          if printf '%s' "${raw_key}" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
-            printf '%s' "${raw_key}" | tr -d '\r' > ~/.ssh/id_ed25519
+          normalized="$(printf '%s' "${raw_key}" | tr -d '\r')"
+          compact="$(printf '%s' "${normalized}" | tr -d '\n\t ')"
+
+          if printf '%s' "${normalized}" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            # Format 1: already armored key text
+            printf '%s' "${normalized}" > ~/.ssh/id_ed25519
+          elif printf '%s' "${compact}" | grep -Eq '^b3BlbnNzaC1rZXktdjE'; then
+            # Format 3: payload body only -> re-armour
+            {
+              echo '-----BEGIN OPENSSH PRIVATE KEY-----'
+              printf '%s' "${compact}" | fold -w 70
+              echo '-----END OPENSSH PRIVATE KEY-----'
+            } > ~/.ssh/id_ed25519
           else
-            # Remove whitespace/newlines before decode to support pasted one-line base64.
-            if ! printf '%s' "${raw_key}" | tr -d '\r\n\t ' | base64 -d > ~/.ssh/id_ed25519 2>/dev/null; then
-              echo "Invalid VPS_SSH_KEY. Provide full OpenSSH private key (recommended) or valid base64-encoded private key content."
+            # Try format 2: base64 of full key file
+            decoded_file="$(mktemp)"
+            if ! printf '%s' "${compact}" | base64 -d > "${decoded_file}" 2>/dev/null; then
+              echo "Invalid VPS_SSH_KEY. Use full OpenSSH key text, base64 of full key file, or OpenSSH payload body."
+              rm -f "${decoded_file}"
               exit 1
             fi
+
+            if grep -q 'BEGIN OPENSSH PRIVATE KEY' "${decoded_file}"; then
+              cat "${decoded_file}" > ~/.ssh/id_ed25519
+            else
+              # Decoded binary payload (openssh-key-v1) -> re-armour it
+              magic_hex="$(xxd -p -l 14 "${decoded_file}" 2>/dev/null || true)"
+              if [ "${magic_hex}" = "6f70656e7373682d6b65792d7631" ]; then
+                payload_b64="$(base64 -w 0 "${decoded_file}")"
+                {
+                  echo '-----BEGIN OPENSSH PRIVATE KEY-----'
+                  printf '%s' "${payload_b64}" | fold -w 70
+                  echo '-----END OPENSSH PRIVATE KEY-----'
+                } > ~/.ssh/id_ed25519
+              else
+                echo "Invalid VPS_SSH_KEY decoded content."
+                rm -f "${decoded_file}"
+                exit 1
+              fi
+            fi
+            rm -f "${decoded_file}"
           fi
+
           chmod 600 ~/.ssh/id_ed25519
 
           # Validate key format early to avoid opaque SSH/libcrypto errors.
