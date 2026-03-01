@@ -194,6 +194,23 @@ Tambahkan secret berikut di environment `autoscore`:
 
 Workflow akan validasi semua secret ini sebelum deploy. Jika ada yang kosong, job deploy akan gagal dengan pesan yang jelas.
 
+Format `VPS_SSH_KEY` yang didukung workflow:
+- **Disarankan**: full private key OpenSSH multiline
+- Alternatif: private key dalam format **base64** (satu baris)
+
+Contoh generate base64 di VPS:
+```bash
+base64 -w 0 /root/.ssh/id_ed25519
+```
+
+Contoh verify key di VPS sebelum dipakai:
+```bash
+ssh-keygen -y -f /root/.ssh/id_ed25519 > /dev/null && echo "OK"
+```
+
+Contoh `VPS_PROJECT_PATH` (harus absolut):
+- `/root/project/AutoScore`
+
 ### 3. Secret Discord (opsional)
 
 Tambahkan secret berikut di environment `autoscore` jika ingin notifikasi:
