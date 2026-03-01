@@ -1,0 +1,75 @@
+name: AutoScoring CI/CD
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest==8.3.5
+
+      - name: Run tests
+        env:
+          FLASK_TESTING: "1"
+        run: |
+          python -m pytest tests -v --tb=short
+
+  deploy_cpu:
+    name: Deploy to VPS (CPU)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment: production
+    timeout-minutes: 25
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: true
+
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy on server
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PROJECT_PATH: ${{ secrets.VPS_PROJECT_PATH }}
+        run: |
+          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" "
+            set -e
+            cd \"${VPS_PROJECT_PATH}\"
+            git fetch --prune origin
+            git checkout --force ${GITHUB_SHA}
+            docker compose -f docker-compose.cpu.yml pull
+            docker compose -f docker-compose.cpu.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.cpu.yml ps
+          "
