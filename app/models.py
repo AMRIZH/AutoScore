@@ -2,7 +2,7 @@
 Database models for AutoScoring application.
 """
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -11,7 +11,7 @@ from app.extensions import db, login_manager
 
 def utc_now_naive() -> datetime:
     """Return a UTC timestamp without tzinfo for timezone-naive DB columns."""
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class LLMConfig(db.Model):

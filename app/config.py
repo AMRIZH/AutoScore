@@ -64,12 +64,12 @@ class Config:
         'github': 'openai/gpt-4.1-mini',
     }
     LLM_MODEL = os.environ.get('LLM_MODEL') or _LLM_MODEL_DEFAULTS.get(LLM_PROVIDER, 'gemini-2.5-flash')
-    NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY') or None
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or None
-    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY') or None
-    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY') or None
-    SILICONFLOW_API_KEY = os.environ.get('SILICONFLOW_API_KEY') or None
-    GITHUB_API_KEY = os.environ.get('GITHUB_API_KEY') or None
+    NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY', '')
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+    SILICONFLOW_API_KEY = os.environ.get('SILICONFLOW_API_KEY', '')
+    GITHUB_API_KEY = os.environ.get('GITHUB_API_KEY', '')
     NVIDIA_BASE_URL = os.environ.get('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
     OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
     DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
