@@ -72,11 +72,22 @@ jobs:
           fi
 
       - name: Configure SSH
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+
+          # Normalize line endings from secrets (Windows CRLF can break key parsing).
+          printf '%s' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          echo "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+          # Validate key format early to avoid opaque SSH/libcrypto errors.
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1; then
+            echo "Invalid VPS_SSH_KEY format. Use an unencrypted private key (OpenSSH PEM) with original multiline format."
+            exit 1
+          fi
+
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy on server
@@ -85,7 +96,7 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PROJECT_PATH: ${{ secrets.VPS_PROJECT_PATH }}
         run: |
-          ssh -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" "
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${VPS_USER}@${VPS_HOST}" "
             set -e
             cd \"${VPS_PROJECT_PATH}\"
             git fetch --prune origin
