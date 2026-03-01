@@ -111,8 +111,13 @@ jobs:
           DEPLOY_RESULT: ${{ needs.deploy_cpu.result }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
           ACTOR: ${{ github.actor }}
           RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_STARTED_AT: ${{ github.run_started_at }}
+          WORKFLOW_NAME: ${{ github.workflow }}
           COMMIT_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -125,12 +130,15 @@ jobs:
 
           SHORT_SHA="${COMMIT_SHA::7}"
           RUN_URL="https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"
+          COMMIT_URL="https://github.com/${REPOSITORY}/commit/${COMMIT_SHA}"
 
           if [ "${TEST_RESULT}" = "success" ] && { [ "${DEPLOY_RESULT}" = "success" ] || [ "${DEPLOY_RESULT}" = "skipped" ]; }; then
             STATUS="SUCCESS"
+            ICON=":white_check_mark:"
             COLOR=3066993
           else
             STATUS="FAILED"
+            ICON=":x:"
             COLOR=15158332
           fi
 
@@ -140,8 +148,32 @@ jobs:
             DEPLOY_LABEL="${DEPLOY_RESULT}"
           fi
 
-          MESSAGE="AutoScoring CI/CD ${STATUS}"
+          if [ "${TEST_RESULT}" != "success" ]; then
+            FAILURE_REASON="Tests failed or were cancelled"
+          elif [ "${DEPLOY_RESULT}" = "failure" ] || [ "${DEPLOY_RESULT}" = "cancelled" ] || [ "${DEPLOY_RESULT}" = "timed_out" ]; then
+            FAILURE_REASON="Deployment failed"
+          elif [ "${DEPLOY_RESULT}" = "skipped" ]; then
+            FAILURE_REASON="Deploy skipped by branch/event rule"
+          else
+            FAILURE_REASON="All critical stages passed"
+          fi
+
+          MESSAGE="${ICON} AutoScoring CI/CD ${STATUS}"
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          ELAPSED="N/A"
+          if [ -n "${RUN_STARTED_AT}" ]; then
+            start_epoch="$(date -u -d "${RUN_STARTED_AT}" +%s 2>/dev/null || true)"
+            now_epoch="$(date -u +%s)"
+            if [ -n "${start_epoch}" ]; then
+              elapsed_sec=$((now_epoch - start_epoch))
+              if [ "${elapsed_sec}" -lt 60 ]; then
+                ELAPSED="${elapsed_sec}s"
+              else
+                ELAPSED="$((elapsed_sec / 60))m $((elapsed_sec % 60))s"
+              fi
+            fi
+          fi
 
           if ! PAYLOAD="$(jq -n \
             --arg message "${MESSAGE}" \
@@ -152,23 +184,35 @@ jobs:
             --arg deploy_result "${DEPLOY_LABEL}" \
             --arg actor "${ACTOR}" \
             --arg commit "${SHORT_SHA}" \
+            --arg commit_url "${COMMIT_URL}" \
             --arg run_url "${RUN_URL}" \
+            --arg workflow_name "${WORKFLOW_NAME}" \
+            --arg run_number "${RUN_NUMBER}" \
+            --arg run_attempt "${RUN_ATTEMPT}" \
+            --arg elapsed "${ELAPSED}" \
+            --arg failure_reason "${FAILURE_REASON}" \
+            --arg ref "${REF}" \
             --arg timestamp "${TIMESTAMP}" \
             --argjson color "${COLOR}" \
             '{
               embeds: [
                 {
                   title: $message,
+                  description: $failure_reason,
                   color: $color,
                   fields: [
+                    {name: "Workflow", value: $workflow_name, inline: true},
+                    {name: "Run", value: ("#" + $run_number + " (attempt " + $run_attempt + ")"), inline: true},
+                    {name: "Duration", value: $elapsed, inline: true},
                     {name: "Repository", value: $repository, inline: true},
                     {name: "Branch", value: $branch, inline: true},
                     {name: "Event", value: $event_name, inline: true},
                     {name: "Test", value: $test_result, inline: true},
                     {name: "Deploy", value: $deploy_result, inline: true},
                     {name: "Actor", value: $actor, inline: true},
-                    {name: "Commit", value: $commit, inline: true},
-                    {name: "Run", value: ("[Open workflow run](" + $run_url + ")"), inline: false}
+                    {name: "Ref", value: $ref, inline: false},
+                    {name: "Commit", value: ("[`" + $commit + "`]" + "(" + $commit_url + ")"), inline: true},
+                    {name: "Links", value: ("[Open workflow run](" + $run_url + ")"), inline: false}
                   ],
                   timestamp: $timestamp
                 }

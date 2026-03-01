@@ -169,6 +169,70 @@ Gunakan opsi ini jika tidak memiliki GPU khusus.
 
 ---
 
+## 🔁 Panduan Setup GitHub CI/CD
+
+Project ini menggunakan workflow `.github/workflows/ci-cd.yml` dengan 3 job:
+- `test`: menjalankan pytest
+- `deploy_cpu`: deploy ke VPS (hanya untuk push ke `main`/`master`)
+- `notify_discord`: kirim ringkasan status pipeline ke Discord
+
+### 1. Buat Environment GitHub
+
+Di GitHub repo: **Settings > Environments > New environment**
+
+Nama environment yang dipakai workflow saat ini:
+- `autoscore`
+
+### 2. Tambahkan Environment Secrets (wajib deploy)
+
+Tambahkan secret berikut di environment `autoscore`:
+- `VPS_HOST` (contoh: `your.server.ip.or.domain`)
+- `VPS_USER` (contoh: `root` atau user deploy)
+- `VPS_PROJECT_PATH` (contoh: `/root/project/AutoScore`)
+- `VPS_SSH_KEY` (private key SSH)
+- `VPS_KNOWN_HOSTS` (output `ssh-keyscan` host VPS)
+
+Workflow akan validasi semua secret ini sebelum deploy. Jika ada yang kosong, job deploy akan gagal dengan pesan yang jelas.
+
+### 3. Secret Discord (opsional)
+
+Tambahkan secret berikut di environment `autoscore` jika ingin notifikasi:
+- `DISCORD_WEBHOOK_URL`
+
+Catatan:
+- Jika `DISCORD_WEBHOOK_URL` kosong, workflow **tidak error**.
+- Jika kirim notifikasi gagal, workflow tetap lanjut (best effort).
+
+### 4. Persiapan folder project di VPS
+
+Pastikan path yang diisi pada `VPS_PROJECT_PATH` benar dan berisi project yang sudah di-clone.
+
+Contoh:
+```bash
+cd /root/project/AutoScore
+pwd
+# /root/project/AutoScore
+```
+
+File `.env` untuk runtime aplikasi cukup disimpan di VPS (tidak wajib dipindah ke GitHub Secrets selama deploy tidak membutuhkannya di runner).
+
+### 5. Trigger workflow
+
+- `push` ke `main`/`master`: jalankan test + deploy + notifikasi
+- `pull_request`: jalankan test + notifikasi (deploy otomatis skip)
+- `workflow_dispatch`: jalankan manual dari tab Actions
+
+### 6. Isi notifikasi Discord
+
+Notifikasi berisi ringkasan:
+- status akhir (`SUCCESS` / `FAILED`)
+- alasan utama (test gagal, deploy gagal, atau deploy skip)
+- workflow name, run number/attempt, durasi
+- branch/ref, actor, event
+- link commit dan link workflow run
+
+---
+
 ## ⚙️ Konfigurasi
 
 ### LLM Provider

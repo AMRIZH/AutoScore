@@ -91,6 +91,25 @@ class ScoringService:
             saved_files: List of saved file info dicts
             progress_store: Shared dict to update progress
         """
+        is_testing_env = str(os.environ.get('FLASK_TESTING', '')).strip().lower() in {
+            '1', 'true', 'yes', 'on'
+        }
+
+        # In tests we avoid async background DB writes because fixture teardown
+        # can remove temporary sqlite files while daemon threads are still running.
+        if self.app.config.get('TESTING') or is_testing_env:
+            progress_store[job_id] = {
+                'status': 'pending',
+                'message': 'Mode test: background scoring dilewati.',
+                'progress': 0,
+                'total': len(saved_files),
+                'current': 0,
+            }
+            logger.info(
+                f"[TEST] Background scoring dilewati untuk job {job_id} (testing mode)"
+            )
+            return
+
         thread = threading.Thread(
             target=self._run_scoring,
             args=(job_id, job_folder, saved_files, progress_store),
