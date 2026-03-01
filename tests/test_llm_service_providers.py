@@ -71,3 +71,17 @@ def test_github_provider_uses_defaults_and_status(app):
         assert cfg['github_base_url'] == 'https://models.github.ai/inference'
         assert status['provider'] == 'github'
         assert status['has_api_key'] is True
+
+
+def test_db_empty_provider_key_overrides_env_key(app):
+    """Explicit empty DB key must not fall back to env/app-config key."""
+    with app.app_context():
+        LLMConfig.set('llm_provider', 'openai')
+        LLMConfig.set('openai_api_key', '')
+        current_app.config['OPENAI_API_KEY'] = 'env-key-should-not-win'
+
+        service = LLMService(current_app.config)
+        cfg = service._get_active_config()
+
+        assert cfg['provider'] == 'openai'
+        assert cfg['openai_api_key'] == ''

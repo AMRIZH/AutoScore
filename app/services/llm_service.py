@@ -151,19 +151,27 @@ class LLMService:
         else:
             gemini_keys = self._gemini_keys
 
-        nvidia_key = db_cfg.get('nvidia_api_key') or self.app_config.get('NVIDIA_API_KEY', '')
-        openai_key = db_cfg.get('openai_api_key') or self.app_config.get('OPENAI_API_KEY', '')
-        deepseek_key = db_cfg.get('deepseek_api_key') or self.app_config.get('DEEPSEEK_API_KEY', '')
-        openrouter_key = db_cfg.get('openrouter_api_key') or self.app_config.get('OPENROUTER_API_KEY', '')
-        siliconflow_key = db_cfg.get('siliconflow_api_key') or self.app_config.get('SILICONFLOW_API_KEY', '')
-        github_key = db_cfg.get('github_api_key') or self.app_config.get('GITHUB_API_KEY', '')
+        def _db_or_app(db_key: str, app_key: str, default: str = '', allow_empty_db: bool = False) -> str:
+            """Resolve value from DB first, then app config/default with optional empty-string behavior."""
+            if db_key in db_cfg:
+                db_value = cast(str, db_cfg.get(db_key, default) or '')
+                if allow_empty_db or db_value:
+                    return db_value
+            return cast(str, self.app_config.get(app_key, default) or default)
 
-        nvidia_base = db_cfg.get('nvidia_base_url') or self.app_config.get('NVIDIA_BASE_URL') or DEFAULT_BASE_URLS['nvidia']
-        openai_base = db_cfg.get('openai_base_url') or self.app_config.get('OPENAI_BASE_URL') or DEFAULT_BASE_URLS['openai']
-        deepseek_base = db_cfg.get('deepseek_base_url') or self.app_config.get('DEEPSEEK_BASE_URL') or DEFAULT_BASE_URLS['deepseek']
-        openrouter_base = db_cfg.get('openrouter_base_url') or self.app_config.get('OPENROUTER_BASE_URL') or DEFAULT_BASE_URLS['openrouter']
-        siliconflow_base = db_cfg.get('siliconflow_base_url') or self.app_config.get('SILICONFLOW_BASE_URL') or DEFAULT_BASE_URLS['siliconflow']
-        github_base = db_cfg.get('github_base_url') or self.app_config.get('GITHUB_BASE_URL') or DEFAULT_BASE_URLS['github']
+        nvidia_key = _db_or_app('nvidia_api_key', 'NVIDIA_API_KEY', allow_empty_db=True)
+        openai_key = _db_or_app('openai_api_key', 'OPENAI_API_KEY', allow_empty_db=True)
+        deepseek_key = _db_or_app('deepseek_api_key', 'DEEPSEEK_API_KEY', allow_empty_db=True)
+        openrouter_key = _db_or_app('openrouter_api_key', 'OPENROUTER_API_KEY', allow_empty_db=True)
+        siliconflow_key = _db_or_app('siliconflow_api_key', 'SILICONFLOW_API_KEY', allow_empty_db=True)
+        github_key = _db_or_app('github_api_key', 'GITHUB_API_KEY', allow_empty_db=True)
+
+        nvidia_base = _db_or_app('nvidia_base_url', 'NVIDIA_BASE_URL', DEFAULT_BASE_URLS['nvidia'])
+        openai_base = _db_or_app('openai_base_url', 'OPENAI_BASE_URL', DEFAULT_BASE_URLS['openai'])
+        deepseek_base = _db_or_app('deepseek_base_url', 'DEEPSEEK_BASE_URL', DEFAULT_BASE_URLS['deepseek'])
+        openrouter_base = _db_or_app('openrouter_base_url', 'OPENROUTER_BASE_URL', DEFAULT_BASE_URLS['openrouter'])
+        siliconflow_base = _db_or_app('siliconflow_base_url', 'SILICONFLOW_BASE_URL', DEFAULT_BASE_URLS['siliconflow'])
+        github_base = _db_or_app('github_base_url', 'GITHUB_BASE_URL', DEFAULT_BASE_URLS['github'])
 
         return {
             'provider': provider,

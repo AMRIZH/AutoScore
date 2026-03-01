@@ -15,7 +15,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import User
+from app.models import User, LLMConfig
 
 
 @pytest.fixture(scope='function')
@@ -24,7 +24,7 @@ def app():
     # Create a temporary database
     db_fd, db_path = tempfile.mkstemp(suffix='.db')
     
-    # Set environment to disable scheduler before creating app
+    prev_flask_testing = os.environ.get('FLASK_TESTING')
     os.environ['FLASK_TESTING'] = '1'
     
     test_config = {
@@ -49,6 +49,16 @@ def app():
     
     with app.app_context():
         db.create_all()
+
+        # Default deterministic LLM config for tests.
+        LLMConfig.set('llm_provider', 'gemini')
+        LLMConfig.set('gemini_api_keys', '["test-gemini-key"]')
+        LLMConfig.set('nvidia_api_key', '')
+        LLMConfig.set('openai_api_key', '')
+        LLMConfig.set('deepseek_api_key', '')
+        LLMConfig.set('openrouter_api_key', '')
+        LLMConfig.set('siliconflow_api_key', '')
+        LLMConfig.set('github_api_key', '')
         
         # Create test user
         test_user = User(username='testuser', role='admin')
@@ -65,8 +75,11 @@ def app():
     except Exception:
         pass
     
-    # Clear environment
-    os.environ.pop('FLASK_TESTING', None)
+    # Restore environment
+    if prev_flask_testing is None:
+        os.environ.pop('FLASK_TESTING', None)
+    else:
+        os.environ['FLASK_TESTING'] = prev_flask_testing
 
 
 @pytest.fixture
