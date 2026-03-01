@@ -73,3 +73,93 @@ jobs:
             docker compose -f docker-compose.cpu.yml up -d --build --remove-orphans
             docker compose -f docker-compose.cpu.yml ps
           "
+
+  notify_discord:
+    name: Notify Discord
+    runs-on: ubuntu-latest
+    needs: [test, deploy_cpu]
+    if: always()
+
+    steps:
+      - name: Send Discord notification
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TEST_RESULT: ${{ needs.test.result }}
+          DEPLOY_RESULT: ${{ needs.deploy_cpu.result }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DISCORD_WEBHOOK_URL}" ]; then
+            echo "DISCORD_WEBHOOK_URL secret is not set, skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${COMMIT_SHA::7}"
+          RUN_URL="https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"
+
+          if [ "${TEST_RESULT}" = "success" ] && { [ "${DEPLOY_RESULT}" = "success" ] || [ "${DEPLOY_RESULT}" = "skipped" ]; }; then
+            STATUS="SUCCESS"
+            COLOR=3066993
+          else
+            STATUS="FAILED"
+            COLOR=15158332
+          fi
+
+          if [ "${DEPLOY_RESULT}" = "skipped" ]; then
+            DEPLOY_LABEL="skipped (expected for non-push or non-main/master)"
+          else
+            DEPLOY_LABEL="${DEPLOY_RESULT}"
+          fi
+
+          MESSAGE="AutoScoring CI/CD ${STATUS}"
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          if ! PAYLOAD="$(jq -n \
+            --arg message "${MESSAGE}" \
+            --arg repository "${REPOSITORY}" \
+            --arg branch "${BRANCH}" \
+            --arg event_name "${EVENT_NAME}" \
+            --arg test_result "${TEST_RESULT}" \
+            --arg deploy_result "${DEPLOY_LABEL}" \
+            --arg actor "${ACTOR}" \
+            --arg commit "${SHORT_SHA}" \
+            --arg run_url "${RUN_URL}" \
+            --arg timestamp "${TIMESTAMP}" \
+            --argjson color "${COLOR}" \
+            '{
+              embeds: [
+                {
+                  title: $message,
+                  color: $color,
+                  fields: [
+                    {name: "Repository", value: $repository, inline: true},
+                    {name: "Branch", value: $branch, inline: true},
+                    {name: "Event", value: $event_name, inline: true},
+                    {name: "Test", value: $test_result, inline: true},
+                    {name: "Deploy", value: $deploy_result, inline: true},
+                    {name: "Actor", value: $actor, inline: true},
+                    {name: "Commit", value: $commit, inline: true},
+                    {name: "Run", value: ("[Open workflow run](" + $run_url + ")"), inline: false}
+                  ],
+                  timestamp: $timestamp
+                }
+              ]
+            }')"; then
+            echo "Failed to build Discord payload; continuing without notification."
+            exit 0
+          fi
+
+          if ! curl --fail-with-body -sS -X POST "${DISCORD_WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            --retry 3 --retry-delay 2 \
+            -d "${PAYLOAD}"; then
+            echo "Discord notification failed; continuing workflow."
+            exit 0
+          fi
