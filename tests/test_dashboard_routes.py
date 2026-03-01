@@ -6,6 +6,7 @@ import pytest
 import json
 import io
 from app.models import User, Job, JobResult
+from app.models import LLMConfig
 
 
 class TestDashboardAccess:
@@ -28,6 +29,18 @@ class TestDashboardAccess:
         assert response.status_code == 200
         assert b'Penilaian Massal' in response.data
         assert b'Penilaian Per Mahasiswa' in response.data
+
+    def test_llm_readiness_requires_gemini_key(self, auth_client, app):
+        """Readiness endpoint should fail when Gemini is active but key list is empty."""
+        with app.app_context():
+            LLMConfig.set('llm_provider', 'gemini')
+            LLMConfig.set('gemini_api_keys', '[]')
+
+        response = auth_client.get('/api/llm-readiness')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['ready'] is False
+        assert 'GEMINI' in data['message']
 
 
 class TestBulkProcessingUpload:
@@ -82,6 +95,44 @@ class TestBulkProcessingUpload:
             data = json.loads(response.data)
             assert data['success'] == True
             assert 'job_id' in data
+
+    def test_upload_blocked_when_provider_key_missing(self, auth_client, sample_pdf, app):
+        """Bulk upload must be blocked if active provider requires API key but key is missing."""
+        with app.app_context():
+            LLMConfig.set('llm_provider', 'openai')
+            LLMConfig.set('openai_api_key', '')
+
+        with open(sample_pdf, 'rb') as f:
+            response = auth_client.post('/api/upload', data={
+                'student_files': (f, 'test_student.pdf'),
+                'score_min': '40',
+                'score_max': '100',
+                'additional_notes': 'Test notes'
+            }, content_type='multipart/form-data')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'api key' in data['error'].lower()
+
+    def test_upload_blocked_when_github_key_missing(self, auth_client, sample_pdf, app):
+        """Bulk upload must be blocked if GitHub provider key is missing."""
+        with app.app_context():
+            LLMConfig.set('llm_provider', 'github')
+            LLMConfig.set('github_api_key', '')
+
+        with open(sample_pdf, 'rb') as f:
+            response = auth_client.post('/api/upload', data={
+                'student_files': (f, 'test_student.pdf'),
+                'score_min': '40',
+                'score_max': '100',
+                'additional_notes': 'Test notes'
+            }, content_type='multipart/form-data')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'github' in data['error'].lower()
 
 
 class TestSingleProcessingUpload:
@@ -144,6 +195,26 @@ class TestSingleProcessingUpload:
             assert data['success'] == True
             assert 'job_id' in data
 
+    def test_single_upload_blocked_when_provider_key_missing(self, auth_client, sample_image, app):
+        """Single upload must be blocked if active provider requires API key but key is missing."""
+        with app.app_context():
+            LLMConfig.set('llm_provider', 'deepseek')
+            LLMConfig.set('deepseek_api_key', '')
+
+        with open(sample_image, 'rb') as f:
+            response = auth_client.post('/api/upload-single', data={
+                'score_min': '40',
+                'score_max': '100',
+                'students_data': json.dumps([{'fileCount': 1}]),
+                'student_0_files': (f, 'answer.png'),
+                'additional_notes': 'Test notes'
+            }, content_type='multipart/form-data')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'api key' in data['error'].lower()
+
 
 class TestJobStatusEndpoints:
     """Test job status endpoints."""
@@ -162,6 +233,65 @@ class TestJobStatusEndpoints:
         """Test that download requires authentication."""
         response = client.get('/api/download/1')
         assert response.status_code in [302, 401]
+
+    def test_progress_fallback_uses_database_state(self, auth_client, app):
+        """Progress endpoint should fall back to DB state when in-memory progress is unavailable."""
+        with app.app_context():
+            from app.extensions import db
+            from app.routes.dashboard import job_progress
+
+            user = User.query.filter_by(username='testuser').first()
+            job = Job(
+                user_id=user.id,
+                status='completed',
+                status_message='Selesai dari DB',
+                total_files=2,
+                processed_files=2,
+                job_type='single',
+            )
+            db.session.add(job)
+            db.session.commit()
+
+            job_progress.pop(job.id, None)
+
+        response = auth_client.get(f'/api/progress/{job.id}')
+        assert response.status_code == 200
+        body = response.data.decode('utf-8')
+        first_event = next((line for line in body.splitlines() if line.startswith('data: ')), None)
+        assert first_event is not None
+        payload = json.loads(first_event[len('data: '):])
+        assert payload['status'] == 'completed'
+        assert payload['message'] == 'Selesai dari DB'
+
+    def test_progress_rejects_other_user_job(self, client, app):
+        """Progress endpoint must not expose jobs belonging to another user."""
+        with app.app_context():
+            from app.extensions import db
+
+            user_a = User.query.filter_by(username='testuser').first()
+            user_b = User(username='otheradmin', role='admin')
+            user_b.set_password('otherpassword')
+            db.session.add(user_b)
+            db.session.commit()
+
+            foreign_job = Job(
+                user_id=user_a.id,
+                status='processing',
+                total_files=1,
+                processed_files=0,
+                job_type='single',
+            )
+            db.session.add(foreign_job)
+            db.session.commit()
+            foreign_job_id = foreign_job.id
+
+        client.post('/login', data={
+            'username': 'otheradmin',
+            'password': 'otherpassword'
+        }, follow_redirects=True)
+
+        response = client.get(f'/api/progress/{foreign_job_id}')
+        assert response.status_code == 404
 
 
 class TestFileValidation:

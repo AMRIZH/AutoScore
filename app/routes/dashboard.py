@@ -8,18 +8,63 @@ import uuid
 import zipfile
 import io
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, current_app, Response, send_file
+from flask import Blueprint, render_template, request, jsonify, current_app, Response, send_file, stream_with_context
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import Job, JobResult, SystemLog
 from app.services.scoring_service import ScoringService
+from app.services.llm_service import LLMService, PROVIDER_KEY_FIELDS
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 # Store for job progress (in-memory, could use Redis in production)
 job_progress = {}
+
+
+def _validate_llm_provider_ready() -> tuple[bool, str]:
+    """Ensure the active provider has the required API key before starting jobs."""
+    llm_service = LLMService(current_app.config)
+    cfg = llm_service._get_active_config()
+    provider = cfg.get('provider', 'gemini')
+
+    if provider == 'gemini':
+        gemini_keys = [k.strip() for k in (cfg.get('gemini_keys') or []) if k and k.strip()]
+        if not gemini_keys:
+            return False, (
+                'Provider LLM aktif (GEMINI) belum memiliki API key. '
+                'Silakan isi minimal satu API key di Admin Panel > Pengaturan LLM sebelum memulai penilaian.'
+            )
+        return True, ''
+
+    key_field = PROVIDER_KEY_FIELDS.get(provider)
+    if not key_field:
+        return False, f'Provider LLM tidak dikenal: {provider}'
+
+    key_value = (cfg.get(key_field, '') or '').strip()
+    if not key_value:
+        return False, (
+            f'Provider LLM aktif ({provider.upper()}) belum memiliki API key. '
+            'Silakan isi API key di Admin Panel > Pengaturan LLM sebelum memulai penilaian.'
+        )
+
+    return True, ''
+
+
+@dashboard_bp.route('/api/llm-readiness', methods=['GET'])
+@login_required
+def llm_readiness():
+    """Return whether the active LLM provider is ready for scoring jobs."""
+    ready, message = _validate_llm_provider_ready()
+    llm_service = LLMService(current_app.config)
+    cfg = llm_service._get_active_config()
+    return jsonify({
+        'success': True,
+        'ready': ready,
+        'provider': cfg.get('provider', 'gemini'),
+        'message': message,
+    })
 
 
 def allowed_file(filename):
@@ -313,6 +358,11 @@ def upload_files():
         if score_min < 0 or score_max > 100:
             return jsonify({'success': False, 'error': 'Rentang nilai harus antara 0 dan 100.'}), 400
         
+        # Validate active LLM provider configuration before accepting job uploads.
+        provider_ready, provider_error = _validate_llm_provider_ready()
+        if not provider_ready:
+            return jsonify({'success': False, 'error': provider_error}), 400
+
         # Get student files
         student_files = request.files.getlist('student_files')
         
@@ -515,6 +565,11 @@ def upload_single():
         if score_min < 0 or score_max > 100:
             return jsonify({'success': False, 'error': 'Rentang nilai harus antara 0 dan 100.'}), 400
         
+        # Validate active LLM provider configuration before accepting job uploads.
+        provider_ready, provider_error = _validate_llm_provider_ready()
+        if not provider_ready:
+            return jsonify({'success': False, 'error': provider_error}), 400
+
         # Get students data
         students_data_str = request.form.get('students_data', '[]')
         try:
@@ -691,6 +746,10 @@ def upload_single():
 @login_required
 def get_progress(job_id):
     """Get job progress via Server-Sent Events (SSE)."""
+    owned_job = Job.query.filter_by(id=job_id, user_id=current_user.id).first()
+    if not owned_job:
+        return jsonify({'success': False, 'error': 'Job tidak ditemukan.'}), 404
+
     def generate():
         """Generate SSE events."""
         import time
@@ -701,7 +760,7 @@ def get_progress(job_id):
                 progress = job_progress[job_id]
             else:
                 # Fallback to database
-                job = Job.query.get(job_id)
+                job = Job.query.filter_by(id=job_id, user_id=current_user.id).first()
                 if job:
                     progress = {
                         'status': job.status,
@@ -723,7 +782,7 @@ def get_progress(job_id):
             
             time.sleep(1)  # Poll every second
     
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 
 @dashboard_bp.route('/api/job/<int:job_id>')

@@ -4,6 +4,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', function () {
+    initializeTooltips(document);
+
     // ==================== BULK PROCESSING ELEMENTS ====================
     const uploadForm = document.getElementById('uploadForm');
     const studentUploadZone = document.getElementById('studentUploadZone');
@@ -399,6 +401,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function handleFormSubmit(e) {
         e.preventDefault();
+
+        const readiness = await checkLlmReadiness();
+        if (!readiness.ready) {
+            alert(readiness.message || 'Konfigurasi LLM belum siap. Hubungi admin.');
+            return;
+        }
 
         if (selectedStudentFiles.length === 0) {
             alert('Silakan pilih file laporan mahasiswa terlebih dahulu.');
@@ -798,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="upload-zone upload-zone-sm student-file-zone" data-student-id="${studentId}">
                     <i class="bi bi-file-earmark-plus text-muted"></i>
                     <span class="ms-1 small">Klik, seret file, atau </span>
-                    <button type="button" class="btn btn-outline-secondary btn-sm btn-camera" data-student-id="${studentId}" title="Ambil dari kamera">
+                    <button type="button" class="btn btn-outline-secondary btn-sm btn-camera js-tooltip" data-student-id="${studentId}" title="Ambil jawaban langsung dari kamera perangkat.">
                         <i class="bi bi-camera"></i>
                     </button>
                     <input type="file" class="d-none student-file-input" 
@@ -812,18 +820,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </td>
             <td class="text-center align-middle">
-                <button type="button" class="btn btn-success btn-sm btn-process-student" 
-                        data-student-id="${studentId}" title="Proses mahasiswa ini">
+                <button type="button" class="btn btn-success btn-sm btn-process-student js-tooltip" 
+                    data-student-id="${studentId}" title="Proses penilaian untuk mahasiswa ini saja.">
                     <i class="bi bi-play-fill me-1"></i>Proses
                 </button>
-                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-student ms-1" 
-                        data-student-id="${studentId}" title="Hapus">
+                <button type="button" class="btn btn-outline-danger btn-sm btn-remove-student ms-1 js-tooltip" 
+                    data-student-id="${studentId}" title="Hapus baris mahasiswa dari daftar.">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
         `;
 
         studentTableBody.appendChild(row);
+        initializeTooltips(row);
 
         // Setup event listeners for this row
         setupStudentRowListeners(studentId);
@@ -942,7 +951,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
-        if (row) row.remove();
+        if (row) {
+            disposeTooltipsIn(row);
+            row.remove();
+        }
 
         // Update row numbers
         updateStudentRowNumbers();
@@ -957,6 +969,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function handleSingleFormSubmit(e) {
         e.preventDefault();
+
+        const readiness = await checkLlmReadiness();
+        if (!readiness.ready) {
+            alert(readiness.message || 'Konfigurasi LLM belum siap. Hubungi admin.');
+            return;
+        }
 
         // Validate students
         if (singleStudents.length === 0) {
@@ -1302,6 +1320,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const student = singleStudents.find(s => s.id === studentId);
         if (!student) return;
 
+        const readiness = await checkLlmReadiness();
+        if (!readiness.ready) {
+            alert(readiness.message || 'Konfigurasi LLM belum siap. Hubungi admin.');
+            return;
+        }
+
         if (student.files.length === 0) {
             alert('Silakan unggah file jawaban terlebih dahulu.');
             return;
@@ -1454,5 +1478,46 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (removeBtn) removeBtn.disabled = false;
         }
         statusDiv.innerHTML = statusHtml;
+    }
+
+    async function checkLlmReadiness() {
+        try {
+            const response = await fetch('/api/llm-readiness');
+            if (!response.ok) {
+                throw new Error('Gagal memeriksa kesiapan provider LLM');
+            }
+            return await response.json();
+        } catch (error) {
+            return {
+                success: false,
+                ready: false,
+                provider: 'unknown',
+                message: 'Tidak dapat memverifikasi konfigurasi LLM. Coba lagi atau hubungi admin.'
+            };
+        }
+    }
+
+    function initializeTooltips(root) {
+        if (!window.bootstrap || !window.bootstrap.Tooltip) {
+            return;
+        }
+        root.querySelectorAll('.js-tooltip[title]').forEach(el => {
+            if (bootstrap.Tooltip.getInstance(el)) {
+                return;
+            }
+            new bootstrap.Tooltip(el);
+        });
+    }
+
+    function disposeTooltipsIn(root) {
+        if (!window.bootstrap || !window.bootstrap.Tooltip) {
+            return;
+        }
+        root.querySelectorAll('.js-tooltip[title]').forEach(el => {
+            const instance = bootstrap.Tooltip.getInstance(el);
+            if (instance) {
+                instance.dispose();
+            }
+        });
     }
 });

@@ -144,25 +144,25 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <a href="{{ url_for('user.index_view') }}" class="btn btn-outline-primary w-100">
+                            <a href="{{ url_for('user.index_view') }}" class="btn btn-outline-primary w-100" data-bs-toggle="tooltip" title="Kelola akun pengguna dan peran akses sistem.">
                                 <i class="bi bi-people d-block mb-2" style="font-size: 2rem;"></i>
                                 Kelola Pengguna
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="{{ url_for('job.index_view') }}" class="btn btn-outline-info w-100">
+                            <a href="{{ url_for('job.index_view') }}" class="btn btn-outline-info w-100" data-bs-toggle="tooltip" title="Lihat dan pantau seluruh pekerjaan penilaian.">
                                 <i class="bi bi-briefcase d-block mb-2" style="font-size: 2rem;"></i>
                                 Lihat Pekerjaan
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="{{ url_for('jobresult.index_view') }}" class="btn btn-outline-success w-100">
+                            <a href="{{ url_for('jobresult.index_view') }}" class="btn btn-outline-success w-100" data-bs-toggle="tooltip" title="Lihat hasil penilaian dan detail output mahasiswa.">
                                 <i class="bi bi-file-earmark-spreadsheet d-block mb-2" style="font-size: 2rem;"></i>
                                 Hasil Penilaian
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="{{ url_for('systemlog.index_view') }}" class="btn btn-outline-secondary w-100">
+                            <a href="{{ url_for('systemlog.index_view') }}" class="btn btn-outline-secondary w-100" data-bs-toggle="tooltip" title="Periksa log aktivitas, peringatan, dan error sistem.">
                                 <i class="bi bi-journal-text d-block mb-2" style="font-size: 2rem;"></i>
                                 Log Sistem
                             </a>
@@ -170,13 +170,13 @@
                     </div>
                     <div class="row mt-2">
                         <div class="col-md-3">
-                            <a href="{{ url_for('settings.index') }}" class="btn btn-outline-warning w-100">
+                            <a href="{{ url_for('settings.index') }}" class="btn btn-outline-warning w-100" data-bs-toggle="tooltip" title="Atur parameter runtime seperti OCR, cleanup, dan batas file.">
                                 <i class="bi bi-gear-wide-connected d-block mb-2" style="font-size: 2rem;"></i>
                                 Pengaturan Runtime
                             </a>
                         </div>
                         <div class="col-md-3">
-                            <a href="{{ url_for('llm_settings.index') }}" class="btn btn-outline-info w-100">
+                            <a href="{{ url_for('llm_settings.index') }}" class="btn btn-outline-info w-100" data-bs-toggle="tooltip" title="Atur provider LLM, API key, base URL, dan model aktif.">
                                 <i class="bi bi-robot d-block mb-2" style="font-size: 2rem;"></i>
                                 Pengaturan LLM
                             </a>
@@ -187,4 +187,25 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('button:not([title]), a.btn:not([title])').forEach(function(el) {
+        const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ');
+        if (!label) {
+            return;
+        }
+        el.setAttribute('title', label.length > 120 ? label.slice(0, 120) : label);
+    });
+
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('[title]').forEach(function(el) {
+            if (bootstrap.Tooltip.getInstance(el)) {
+                return;
+            }
+            new bootstrap.Tooltip(el);
+        });
+    }
+});
+</script>
 {% endblock %}

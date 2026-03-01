@@ -43,13 +43,13 @@
                                name="password" 
                                placeholder="Masukkan password"
                                required>
-                        <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                        <button class="btn btn-outline-secondary js-tooltip" type="button" id="togglePassword" title="Tampilkan atau sembunyikan password.">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>
                 </div>
                 
-                <button type="submit" class="btn btn-primary w-100 btn-lg">
+                <button type="submit" class="btn btn-primary w-100 btn-lg js-tooltip" title="Masuk ke dashboard AutoScoring dengan akun Anda.">
                     <i class="bi bi-box-arrow-in-right me-2"></i>Masuk
                 </button>
             </form>
@@ -81,5 +81,14 @@
             icon.classList.add('bi-eye');
         }
     });
+
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('.js-tooltip[title]').forEach(function(el) {
+            if (bootstrap.Tooltip.getInstance(el)) {
+                return;
+            }
+            new bootstrap.Tooltip(el);
+        });
+    }
 </script>
 {% endblock %}

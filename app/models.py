@@ -2,11 +2,16 @@
 Database models for AutoScoring application.
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.extensions import db, login_manager
+
+
+def utc_now_naive() -> datetime:
+    """Return a UTC timestamp without tzinfo for timezone-naive DB columns."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class LLMConfig(db.Model):
@@ -16,18 +21,18 @@ class LLMConfig(db.Model):
 
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
     @classmethod
     def get(cls, key, default=None):
         """Get a config value by key."""
-        row = cls.query.get(key)
+        row = db.session.get(cls, key)
         return row.value if row else default
 
     @classmethod
     def set(cls, key, value):
         """Set a config value (insert or update) using merge for atomicity."""
-        instance = cls(key=key, value=value, updated_at=datetime.utcnow())
+        instance = cls(key=key, value=value, updated_at=utc_now_naive())
         db.session.merge(instance)
         db.session.commit()
 
@@ -49,7 +54,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='aslab')  # 'admin' or 'aslab'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now_naive)
     last_login = db.Column(db.DateTime, nullable=True)
     
     # Relationship to jobs
@@ -75,7 +80,7 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     """Load user by ID for Flask-Login."""
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 
 class Job(db.Model):
@@ -111,7 +116,7 @@ class Job(db.Model):
     result_csv_path = db.Column(db.String(500), nullable=True)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now_naive)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     
@@ -144,7 +149,7 @@ class JobResult(db.Model):
     error_message = db.Column(db.Text, nullable=True)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now_naive)
     processed_at = db.Column(db.DateTime, nullable=True)
     
     def __repr__(self):
@@ -157,7 +162,7 @@ class SystemLog(db.Model):
     __tablename__ = 'system_logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime, default=utc_now_naive, index=True)
     level = db.Column(db.String(20), nullable=False)  # INFO, WARNING, ERROR
     category = db.Column(db.String(50), nullable=False)  # login, upload, llm, cleanup, etc.
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)

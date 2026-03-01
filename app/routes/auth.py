@@ -2,12 +2,12 @@
 Authentication routes for AutoScoring application.
 """
 
-from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
+from urllib.parse import urlparse
 
 from app.extensions import db
-from app.models import User, SystemLog
+from app.models import User, SystemLog, utc_now_naive
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -35,7 +35,7 @@ def login():
         if user and user.check_password(password):
             # Successful login
             login_user(user, remember=True)
-            user.last_login = datetime.utcnow()
+            user.last_login = utc_now_naive()
             db.session.commit()
             
             current_app.logger.info(f'Login berhasil: {username}')
@@ -43,7 +43,13 @@ def login():
             
             # Redirect to next page or dashboard
             next_page = request.args.get('next')
-            if next_page and next_page.startswith('/'):
+            parsed_next = urlparse(next_page) if next_page else None
+            if (
+                next_page
+                and parsed_next
+                and not parsed_next.netloc
+                and parsed_next.path.startswith('/')
+            ):
                 return redirect(next_page)
             return redirect(url_for('dashboard.index'))
         else:

@@ -28,7 +28,7 @@
             <a class="navbar-brand" href="{{ url_for('dashboard.index') }}">
                 <i class="bi bi-file-earmark-check me-2"></i>AutoScoring
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler js-tooltip" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" title="Buka atau tutup menu navigasi.">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -60,7 +60,7 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                <a class="dropdown-item js-tooltip" href="{{ url_for('auth.logout') }}" title="Keluar dari sesi akun saat ini.">
                                     <i class="bi bi-box-arrow-right me-2"></i>Logout
                                 </a>
                             </li>
@@ -86,7 +86,7 @@
                                 {{ message }}
                                 <span class="toast-countdown ms-2 badge bg-dark" style="font-size: 0.75rem;"></span>
                             </div>
-                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto js-tooltip" data-bs-dismiss="toast" aria-label="Close" title="Tutup notifikasi ini."></button>
                         </div>
                     </div>
                 {% endfor %}
@@ -121,6 +121,31 @@
                     });
                 }
             });
+
+            document.querySelectorAll('button:not([title]), a.btn:not([title])').forEach(function(el) {
+                const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ');
+                if (!label) {
+                    return;
+                }
+                el.setAttribute('title', label.length > 120 ? label.slice(0, 120) : label);
+                el.classList.add('js-tooltip');
+            });
+
+            function initializeTooltipsWhenBootstrapReady() {
+                if (!(window.bootstrap && window.bootstrap.Tooltip)) {
+                    window.setTimeout(initializeTooltipsWhenBootstrapReady, 50);
+                    return;
+                }
+                document.querySelectorAll('.js-tooltip[title]').forEach(function(el) {
+                    if (bootstrap.Tooltip.getInstance(el)) {
+                        return;
+                    }
+                    new bootstrap.Tooltip(el);
+                });
+            }
+
+            // Ensure tooltip initialization runs only after Bootstrap is available.
+            initializeTooltipsWhenBootstrapReady();
         });
     </script>
 

@@ -41,6 +41,10 @@
                                 <option value="gemini" {% if llm_config.provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
                                 <option value="nvidia" {% if llm_config.provider == 'nvidia' %}selected{% endif %}>NVIDIA Build</option>
                                 <option value="openai" {% if llm_config.provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                                <option value="deepseek" {% if llm_config.provider == 'deepseek' %}selected{% endif %}>DeepSeek</option>
+                                <option value="openrouter" {% if llm_config.provider == 'openrouter' %}selected{% endif %}>OpenRouter</option>
+                                <option value="siliconflow" {% if llm_config.provider == 'siliconflow' %}selected{% endif %}>SiliconFlow</option>
+                                <option value="github" {% if llm_config.provider == 'github' %}selected{% endif %}>GitHub Models</option>
                             </select>
                         </div>
 
@@ -94,6 +98,78 @@
                             </div>
                         </div>
 
+                        <!-- DeepSeek Section -->
+                        <div class="provider-section" id="section-deepseek">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> DeepSeek API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="deepseek_api_key" id="deepseekApiKey"
+                                    value="{{ llm_config.deepseek_api_key }}" placeholder="sk-...">
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://platform.deepseek.com/api_keys" target="_blank">DeepSeek Platform</a>.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="deepseek_base_url" id="deepseekBaseUrl"
+                                    value="{{ llm_config.deepseek_base_url }}" placeholder="https://api.deepseek.com/v1">
+                            </div>
+                        </div>
+
+                        <!-- OpenRouter Section -->
+                        <div class="provider-section" id="section-openrouter">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> OpenRouter API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="openrouter_api_key" id="openrouterApiKey"
+                                    value="{{ llm_config.openrouter_api_key }}" placeholder="sk-or-...">
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="openrouter_base_url" id="openrouterBaseUrl"
+                                    value="{{ llm_config.openrouter_base_url }}" placeholder="https://openrouter.ai/api/v1">
+                            </div>
+                        </div>
+
+                        <!-- SiliconFlow Section -->
+                        <div class="provider-section" id="section-siliconflow">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> SiliconFlow API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="siliconflow_api_key" id="siliconflowApiKey"
+                                    value="{{ llm_config.siliconflow_api_key }}" placeholder="sk-...">
+                                <small class="text-muted">
+                                    Dapatkan dari <a href="https://siliconflow.cn" target="_blank">SiliconFlow</a>.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="siliconflow_base_url" id="siliconflowBaseUrl"
+                                    value="{{ llm_config.siliconflow_base_url }}" placeholder="https://api.siliconflow.cn/v1">
+                            </div>
+                        </div>
+
+                        <!-- GitHub Models Section -->
+                        <div class="provider-section" id="section-github">
+                            <h5 class="mb-3"><i class="bi bi-key"></i> GitHub Models API</h5>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>API Key</strong></label>
+                                <input type="password" class="form-control" name="github_api_key" id="githubApiKey"
+                                    value="{{ llm_config.github_api_key }}" placeholder="ghp_... atau github_pat_...">
+                                <small class="text-muted">
+                                    Gunakan token GitHub dengan akses GitHub Models.
+                                </small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Base URL</strong></label>
+                                <input type="url" class="form-control" name="github_base_url" id="githubBaseUrl"
+                                    value="{{ llm_config.github_base_url }}" placeholder="https://models.inference.ai.azure.com">
+                            </div>
+                        </div>
+
                         <!-- Model Selection -->
                         <hr class="my-4">
                         <h5 class="mb-3"><i class="bi bi-cpu"></i> Model</h5>
@@ -104,7 +180,7 @@
                                 <div class="input-group">
                                     <input type="text" class="form-control" name="llm_model" id="llmModel"
                                         value="{{ llm_config.model }}" placeholder="contoh: gemini-2.5-flash">
-                                    <button type="button" class="btn btn-outline-secondary" id="btnFetchModels">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnFetchModels" data-bs-toggle="tooltip" title="Ambil daftar model dari provider aktif menggunakan API key saat ini.">
                                         <span id="modelFetchSpinner" class="spinner-border spinner-border-sm me-1" role="status"></span>
                                         <i class="bi bi-arrow-repeat" id="modelFetchIcon"></i>
                                         Ambil Daftar Model
@@ -123,10 +199,10 @@
                         <hr class="my-4">
 
                         <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+                            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary" data-bs-toggle="tooltip" title="Kembali ke dashboard admin tanpa menyimpan perubahan.">
                                 <i class="bi bi-arrow-left"></i> Kembali
                             </a>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Simpan provider, model, API key, dan base URL ke database.">
                                 <i class="bi bi-check-lg"></i> Simpan Pengaturan
                             </button>
                         </div>
@@ -178,6 +254,30 @@
                         Model default: <code>gpt-4.1</code>
                     </p>
 
+                    <h6>DeepSeek</h6>
+                    <p class="small text-muted">
+                        API kompatibel OpenAI dari DeepSeek.
+                        Model default: <code>deepseek-chat</code>
+                    </p>
+
+                    <h6>OpenRouter</h6>
+                    <p class="small text-muted">
+                        Gateway multi-model kompatibel OpenAI.
+                        Model default: <code>openai/gpt-4o-mini</code>
+                    </p>
+
+                    <h6>SiliconFlow</h6>
+                    <p class="small text-muted">
+                        API kompatibel OpenAI dengan pilihan model open-source.
+                        Model default: <code>Qwen/Qwen2.5-72B-Instruct</code>
+                    </p>
+
+                    <h6>GitHub Models</h6>
+                    <p class="small text-muted">
+                        Endpoint model inference GitHub (kompatibel OpenAI).
+                        Model default: <code>openai/gpt-4.1-mini</code>
+                    </p>
+
                     <hr>
 
                     <div class="alert alert-warning small mb-0">
@@ -203,7 +303,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const defaultModels = {
         'gemini': 'gemini-2.5-flash',
         'nvidia': 'moonshotai/kimi-k2.5',
-        'openai': 'gpt-4.1'
+        'openai': 'gpt-4.1',
+        'deepseek': 'deepseek-chat',
+        'openrouter': 'openai/gpt-4o-mini',
+        'siliconflow': 'Qwen/Qwen2.5-72B-Instruct',
+        'github': 'openai/gpt-4.1-mini'
+    };
+
+    const providerKeyInputMap = {
+        'gemini': 'geminiApiKeys',
+        'nvidia': 'nvidiaApiKey',
+        'openai': 'openaiApiKey',
+        'deepseek': 'deepseekApiKey',
+        'openrouter': 'openrouterApiKey',
+        'siliconflow': 'siliconflowApiKey',
+        'github': 'githubApiKey'
     };
 
     function showProviderSection() {
@@ -222,6 +336,45 @@ document.addEventListener('DOMContentLoaded', function() {
     // Init
     showProviderSection();
 
+    document.querySelectorAll('button:not([title]), a.btn:not([title])').forEach(el => {
+        const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ');
+        if (!label) return;
+        el.setAttribute('title', label.length > 120 ? label.slice(0, 120) : label);
+    });
+
+    // Initialize bootstrap tooltips in this page.
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('[title]').forEach(el => {
+            if (bootstrap.Tooltip.getInstance(el)) {
+                return;
+            }
+            new bootstrap.Tooltip(el);
+        });
+    }
+
+    const llmForm = document.getElementById('llmForm');
+    llmForm.addEventListener('submit', function(e) {
+        const provider = providerSelect.value;
+        const keyInputId = providerKeyInputMap[provider];
+        const keyInput = keyInputId ? document.getElementById(keyInputId) : null;
+        let keyValue = '';
+
+        if (provider === 'gemini') {
+            const keys = keyInput ? keyInput.value.split('\n').map(k => k.trim()).filter(Boolean) : [];
+            keyValue = keys[0] || '';
+        } else {
+            keyValue = keyInput ? keyInput.value.trim() : '';
+        }
+
+        if (!keyValue) {
+            e.preventDefault();
+            alert('API key untuk provider ' + provider.toUpperCase() + ' wajib diisi sebelum menyimpan.');
+            if (keyInput) {
+                keyInput.focus();
+            }
+        }
+    });
+
     // Fetch models
     btnFetch.addEventListener('click', function() {
         const provider = providerSelect.value;
@@ -237,6 +390,18 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (provider === 'openai') {
             apiKey = document.getElementById('openaiApiKey').value.trim();
             baseUrl = document.getElementById('openaiBaseUrl').value.trim();
+        } else if (provider === 'deepseek') {
+            apiKey = document.getElementById('deepseekApiKey').value.trim();
+            baseUrl = document.getElementById('deepseekBaseUrl').value.trim();
+        } else if (provider === 'openrouter') {
+            apiKey = document.getElementById('openrouterApiKey').value.trim();
+            baseUrl = document.getElementById('openrouterBaseUrl').value.trim();
+        } else if (provider === 'siliconflow') {
+            apiKey = document.getElementById('siliconflowApiKey').value.trim();
+            baseUrl = document.getElementById('siliconflowBaseUrl').value.trim();
+        } else if (provider === 'github') {
+            apiKey = document.getElementById('githubApiKey').value.trim();
+            baseUrl = document.getElementById('githubBaseUrl').value.trim();
         }
 
         if (!apiKey) {

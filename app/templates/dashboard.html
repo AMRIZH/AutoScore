@@ -128,13 +128,15 @@
 <!-- Tab Navigation -->
 <ul class="nav nav-tabs mb-4" id="processingTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk-processing"
+        <button class="nav-link active js-tooltip" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk-processing"
+            title="Buka mode penilaian massal untuk banyak file sekaligus."
             type="button" role="tab" aria-controls="bulk-processing" aria-selected="true">
             <i class="bi bi-files me-2"></i>Penilaian Massal
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-processing" type="button"
+        <button class="nav-link js-tooltip" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-processing" type="button"
+            title="Buka mode penilaian per mahasiswa dengan proses individual."
             role="tab" aria-controls="single-processing" aria-selected="false">
             <i class="bi bi-person me-2"></i>Penilaian Per Mahasiswa
         </button>
@@ -262,7 +264,7 @@
 
                             <!-- Submit Button -->
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                <button type="submit" class="btn btn-primary btn-lg js-tooltip" id="submitBtn" title="Mulai proses penilaian massal untuk semua laporan yang sudah diunggah.">
                                     <i class="bi bi-play-circle me-2"></i>Mulai Penilaian
                                 </button>
                             </div>
@@ -295,10 +297,10 @@
                                 <p id="resultMessage">Semua laporan telah berhasil dinilai.</p>
                                 <hr>
                                 <div class="d-flex gap-2">
-                                    <a href="#" class="btn btn-success" id="downloadBtn">
+                                    <a href="#" class="btn btn-success js-tooltip" id="downloadBtn" title="Unduh hasil penilaian massal dalam format CSV.">
                                         <i class="bi bi-download me-2"></i>Unduh Hasil (CSV)
                                     </a>
-                                    <button type="button" class="btn btn-outline-secondary" id="newScoringBtn">
+                                    <button type="button" class="btn btn-outline-secondary js-tooltip" id="newScoringBtn" title="Reset form massal untuk memulai batch penilaian baru.">
                                         <i class="bi bi-plus-circle me-2"></i>Penilaian Baru
                                     </button>
                                 </div>
@@ -346,7 +348,7 @@
                                     </div>
                                     {% if job.status == 'completed' and job.result_csv_path %}
                                     <a href="{{ url_for('dashboard.download_result', job_id=job.id) }}"
-                                        class="btn btn-sm btn-outline-primary" title="Unduh">
+                                        class="btn btn-sm btn-outline-primary js-tooltip" title="Unduh hasil job ini.">
                                         <i class="bi bi-download"></i>
                                     </a>
                                     {% endif %}
@@ -488,7 +490,7 @@
                                         <i class="bi bi-people me-1"></i>Upload Jawaban Mahasiswa
                                         <span class="text-danger">*</span>
                                     </label>
-                                    <button type="button" class="btn btn-outline-success btn-sm" id="addStudentBtn">
+                                    <button type="button" class="btn btn-outline-success btn-sm js-tooltip" id="addStudentBtn" title="Tambah baris mahasiswa baru untuk penilaian individual.">
                                         <i class="bi bi-plus-circle me-1"></i>Tambah Mahasiswa
                                     </button>
                                 </div>
@@ -518,7 +520,7 @@
 
                             <!-- Submit Button -->
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-success btn-lg" id="singleSubmitBtn">
+                                <button type="submit" class="btn btn-success btn-lg js-tooltip" id="singleSubmitBtn" title="Mulai proses penilaian untuk semua mahasiswa pada tabel.">
                                     <i class="bi bi-play-circle me-2"></i>Mulai Penilaian
                                 </button>
                             </div>
@@ -551,10 +553,10 @@
                                 <p id="singleResultMessage">Semua mahasiswa telah berhasil dinilai.</p>
                                 <hr>
                                 <div class="d-flex gap-2">
-                                    <a href="#" class="btn btn-success" id="singleDownloadBtn">
+                                    <a href="#" class="btn btn-success js-tooltip" id="singleDownloadBtn" title="Unduh hasil penilaian individual dalam format CSV.">
                                         <i class="bi bi-download me-2"></i>Unduh Hasil (CSV)
                                     </a>
-                                    <button type="button" class="btn btn-outline-secondary" id="singleNewScoringBtn">
+                                    <button type="button" class="btn btn-outline-secondary js-tooltip" id="singleNewScoringBtn" title="Reset form individual dan mulai input mahasiswa baru.">
                                         <i class="bi bi-plus-circle me-2"></i>Penilaian Baru
                                     </button>
                                 </div>
@@ -615,8 +617,7 @@
                 <h5 class="modal-title" id="cameraModalLabel">
                     <i class="bi bi-camera me-2"></i>Ambil Foto Dokumen
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                <button type="button" class="btn-close js-tooltip" data-bs-dismiss="modal" aria-label="Tutup" title="Tutup dialog kamera."></button>            </div>
             <div class="modal-body text-center">
                 <video id="cameraPreview" class="camera-preview mb-3" autoplay playsinline></video>
                 <canvas id="cameraCanvas" class="camera-canvas"></canvas>
@@ -629,16 +630,16 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <button type="button" class="btn btn-secondary js-tooltip" data-bs-dismiss="modal" title="Batalkan pengambilan foto dan kembali ke form.">
                     <i class="bi bi-x-circle me-1"></i>Batal
                 </button>
-                <button type="button" class="btn btn-primary" id="captureBtn">
+                <button type="button" class="btn btn-primary js-tooltip" id="captureBtn" title="Ambil foto dokumen dari kamera aktif.">
                     <i class="bi bi-camera me-1"></i>Ambil Foto
                 </button>
-                <button type="button" class="btn btn-warning d-none" id="retakeBtn">
+                <button type="button" class="btn btn-warning d-none js-tooltip" id="retakeBtn" title="Ambil ulang foto jika hasil belum jelas.">
                     <i class="bi bi-arrow-repeat me-1"></i>Ambil Ulang
                 </button>
-                <button type="button" class="btn btn-success d-none" id="useCaptureBtn">
+                <button type="button" class="btn btn-success d-none js-tooltip" id="useCaptureBtn" title="Gunakan foto ini sebagai file jawaban mahasiswa.">
                     <i class="bi bi-check-circle me-1"></i>Gunakan Foto
                 </button>
             </div>

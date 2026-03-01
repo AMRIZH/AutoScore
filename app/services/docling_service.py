@@ -5,9 +5,15 @@ Docling PDF parsing service for AutoScoring application.
 import gc
 import os
 import logging
+import re
 from typing import Optional, List
 
 logger = logging.getLogger(__name__)
+
+BASE64_IMAGE_PATTERN = re.compile(
+    r'data:image/[^;]+;base64,[A-Za-z0-9+/=_\s-]+',
+    re.IGNORECASE,
+)
 
 # Supported file extensions
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif', 
@@ -79,10 +85,21 @@ class DoclingService:
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
             }
             
-            # Add image format support
+            # Add image format support and reuse OCR pipeline for image extraction.
             try:
-                format_options[InputFormat.IMAGE] = ImageFormatOption()
-                logger.info("Image format support diaktifkan")
+                image_option = ImageFormatOption()
+
+                # Docling versions differ; attach pipeline options only if supported.
+                if hasattr(image_option, 'pipeline_options'):
+                    image_option.pipeline_options = pipeline_options
+                    logger.info("Image format support diaktifkan dengan OCR pipeline")
+                else:
+                    logger.warning(
+                        "ImageFormatOption tidak mendukung pipeline_options pada versi Docling ini; "
+                        "OCR gambar mungkin bergantung pada default pipeline internal"
+                    )
+
+                format_options[InputFormat.IMAGE] = image_option
             except Exception as e:
                 logger.warning(f"Image format support tidak tersedia: {e}")
             
@@ -160,6 +177,12 @@ class DoclingService:
         """
         file_type = self._get_file_type(file_path)
         logger.info(f"Memproses dokumen ({file_type}): {file_path}")
+
+        if file_type == 'image':
+            logger.info(
+                "File gambar terdeteksi. OCR aktif=%s. Hasil akan diekspor sebagai markdown text (bukan base64).",
+                self.enable_ocr,
+            )
         
         # Plain text files can be read directly
         if file_type == 'text':
@@ -183,6 +206,11 @@ class DoclingService:
         
         # Export to markdown (LLM-ready format)
         markdown_text = result.document.export_to_markdown()
+
+        # Never return base64 image payloads to downstream LLM scoring.
+        if BASE64_IMAGE_PATTERN.search(markdown_text):
+            markdown_text = BASE64_IMAGE_PATTERN.sub('[BASE64_IMAGE_REMOVED]', markdown_text)
+            logger.warning("Payload base64 gambar terdeteksi dan dibersihkan dari output markdown")
         
         logger.info(f"Dokumen berhasil diproses: {file_path} ({len(markdown_text)} karakter)")
         

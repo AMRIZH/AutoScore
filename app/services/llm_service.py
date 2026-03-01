@@ -1,6 +1,6 @@
 """
 Unified LLM service for AutoScoring application.
-Supports Gemini (google-genai), NVIDIA Build, and OpenAI (openai SDK).
+Supports Gemini and multiple OpenAI-compatible providers.
 """
 
 import json
@@ -8,7 +8,7 @@ import logging
 import re
 import time
 import threading
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, cast
 from itertools import cycle
 
 logger = logging.getLogger(__name__)
@@ -18,11 +18,46 @@ DEFAULT_MODELS = {
     'gemini': 'gemini-2.5-flash',
     'nvidia': 'moonshotai/kimi-k2.5',
     'openai': 'gpt-4.1',
+    'deepseek': 'deepseek-chat',
+    'openrouter': 'openai/gpt-4o-mini',
+    'siliconflow': 'Qwen/Qwen2.5-72B-Instruct',
+    'github': 'openai/gpt-4.1-mini',
 }
 
 DEFAULT_BASE_URLS = {
     'nvidia': 'https://integrate.api.nvidia.com/v1',
     'openai': 'https://api.openai.com/v1',
+    'deepseek': 'https://api.deepseek.com/v1',
+    'openrouter': 'https://openrouter.ai/api/v1',
+    'siliconflow': 'https://api.siliconflow.cn/v1',
+    'github': 'https://models.inference.ai.azure.com',
+}
+
+OPENAI_COMPAT_PROVIDERS = (
+    'nvidia',
+    'openai',
+    'deepseek',
+    'openrouter',
+    'siliconflow',
+    'github',
+)
+
+PROVIDER_KEY_FIELDS = {
+    'nvidia': 'nvidia_api_key',
+    'openai': 'openai_api_key',
+    'deepseek': 'deepseek_api_key',
+    'openrouter': 'openrouter_api_key',
+    'siliconflow': 'siliconflow_api_key',
+    'github': 'github_api_key',
+}
+
+PROVIDER_BASE_FIELDS = {
+    'nvidia': 'nvidia_base_url',
+    'openai': 'openai_base_url',
+    'deepseek': 'deepseek_base_url',
+    'openrouter': 'openrouter_base_url',
+    'siliconflow': 'siliconflow_base_url',
+    'github': 'github_base_url',
 }
 
 # System prompt for scoring (shared across all providers)
@@ -59,7 +94,7 @@ HANYA output JSON di atas, tanpa teks tambahan apapun sebelum atau sesudah JSON.
 
 
 class LLMService:
-    """Unified LLM service supporting Gemini, NVIDIA Build, and OpenAI."""
+    """Unified LLM service supporting Gemini and OpenAI-compatible providers."""
 
     def __init__(self, app_config):
         """
@@ -96,11 +131,14 @@ class LLMService:
             or self.app_config.get('LLM_PROVIDER')
             or 'gemini'
         )
-        model = (
-            db_cfg.get('llm_model')
-            or self.app_config.get('LLM_MODEL')
-            or DEFAULT_MODELS.get(provider, '')
-        )
+        model = db_cfg.get('llm_model')
+        if not model:
+            app_provider = self.app_config.get('LLM_PROVIDER', 'gemini')
+            app_model = self.app_config.get('LLM_MODEL')
+            if app_model and provider == app_provider:
+                model = app_model
+            else:
+                model = DEFAULT_MODELS.get(provider, '')
 
         # API keys
         gemini_keys_json = db_cfg.get('gemini_api_keys')
@@ -112,25 +150,19 @@ class LLMService:
         else:
             gemini_keys = self._gemini_keys
 
-        nvidia_key = (
-            db_cfg.get('nvidia_api_key')
-            or self.app_config.get('NVIDIA_API_KEY', '')
-        )
-        openai_key = (
-            db_cfg.get('openai_api_key')
-            or self.app_config.get('OPENAI_API_KEY', '')
-        )
+        nvidia_key = db_cfg.get('nvidia_api_key') or self.app_config.get('NVIDIA_API_KEY', '')
+        openai_key = db_cfg.get('openai_api_key') or self.app_config.get('OPENAI_API_KEY', '')
+        deepseek_key = db_cfg.get('deepseek_api_key') or self.app_config.get('DEEPSEEK_API_KEY', '')
+        openrouter_key = db_cfg.get('openrouter_api_key') or self.app_config.get('OPENROUTER_API_KEY', '')
+        siliconflow_key = db_cfg.get('siliconflow_api_key') or self.app_config.get('SILICONFLOW_API_KEY', '')
+        github_key = db_cfg.get('github_api_key') or self.app_config.get('GITHUB_API_KEY', '')
 
-        nvidia_base = (
-            db_cfg.get('nvidia_base_url')
-            or self.app_config.get('NVIDIA_BASE_URL')
-            or DEFAULT_BASE_URLS['nvidia']
-        )
-        openai_base = (
-            db_cfg.get('openai_base_url')
-            or self.app_config.get('OPENAI_BASE_URL')
-            or DEFAULT_BASE_URLS['openai']
-        )
+        nvidia_base = db_cfg.get('nvidia_base_url') or self.app_config.get('NVIDIA_BASE_URL') or DEFAULT_BASE_URLS['nvidia']
+        openai_base = db_cfg.get('openai_base_url') or self.app_config.get('OPENAI_BASE_URL') or DEFAULT_BASE_URLS['openai']
+        deepseek_base = db_cfg.get('deepseek_base_url') or self.app_config.get('DEEPSEEK_BASE_URL') or DEFAULT_BASE_URLS['deepseek']
+        openrouter_base = db_cfg.get('openrouter_base_url') or self.app_config.get('OPENROUTER_BASE_URL') or DEFAULT_BASE_URLS['openrouter']
+        siliconflow_base = db_cfg.get('siliconflow_base_url') or self.app_config.get('SILICONFLOW_BASE_URL') or DEFAULT_BASE_URLS['siliconflow']
+        github_base = db_cfg.get('github_base_url') or self.app_config.get('GITHUB_BASE_URL') or DEFAULT_BASE_URLS['github']
 
         return {
             'provider': provider,
@@ -140,6 +172,14 @@ class LLMService:
             'nvidia_base_url': nvidia_base,
             'openai_api_key': openai_key,
             'openai_base_url': openai_base,
+            'deepseek_api_key': deepseek_key,
+            'deepseek_base_url': deepseek_base,
+            'openrouter_api_key': openrouter_key,
+            'openrouter_base_url': openrouter_base,
+            'siliconflow_api_key': siliconflow_key,
+            'siliconflow_base_url': siliconflow_base,
+            'github_api_key': github_key,
+            'github_base_url': github_base,
         }
 
     # ------------------------------------------------------------------
@@ -181,7 +221,7 @@ class LLMService:
             return self._score_with_gemini(
                 cfg, system_prompt, user_prompt, score_min, score_max, enable_evaluation, max_words
             )
-        elif provider in ('nvidia', 'openai'):
+        elif provider in OPENAI_COMPAT_PROVIDERS:
             return self._score_with_openai_compat(
                 cfg, system_prompt, user_prompt, score_min, score_max, enable_evaluation, max_words
             )
@@ -206,12 +246,10 @@ class LLMService:
 
         if provider == 'gemini':
             status['api_key_count'] = len(cfg['gemini_keys'])
-        elif provider == 'nvidia':
-            status['has_api_key'] = bool(cfg['nvidia_api_key'])
-            status['base_url'] = cfg['nvidia_base_url']
-        elif provider == 'openai':
-            status['has_api_key'] = bool(cfg['openai_api_key'])
-            status['base_url'] = cfg['openai_base_url']
+        elif provider in OPENAI_COMPAT_PROVIDERS:
+            api_key, base_url = self._resolve_openai_compat_auth(cfg, provider)
+            status['has_api_key'] = bool(api_key)
+            status['base_url'] = base_url
 
         return status
 
@@ -229,11 +267,22 @@ class LLMService:
 
         if provider == 'gemini':
             return LLMService._fetch_gemini_models(api_key)
-        elif provider in ('nvidia', 'openai'):
+        elif provider in OPENAI_COMPAT_PROVIDERS:
             effective_base = base_url or DEFAULT_BASE_URLS.get(provider, '')
             return LLMService._fetch_openai_compat_models(api_key, effective_base)
         else:
             raise ValueError(f"Provider tidak dikenal: {provider}")
+
+    @staticmethod
+    def _resolve_openai_compat_auth(cfg: Dict[str, Any], provider: str) -> tuple[str, str]:
+        """Resolve API key and base URL for an OpenAI-compatible provider."""
+        key_field = PROVIDER_KEY_FIELDS.get(provider)
+        base_field = PROVIDER_BASE_FIELDS.get(provider)
+        api_key = cfg.get(key_field, '') if key_field else ''
+        base_url = cfg.get(base_field, '') if base_field else ''
+        if not base_url:
+            base_url = DEFAULT_BASE_URLS.get(provider, '')
+        return api_key, base_url
 
     # ------------------------------------------------------------------
     # Gemini backend
@@ -338,7 +387,7 @@ class LLMService:
         }
 
     # ------------------------------------------------------------------
-    # OpenAI-compatible backend (NVIDIA Build & OpenAI)
+    # OpenAI-compatible backend
     # ------------------------------------------------------------------
 
     def _score_with_openai_compat(
@@ -347,12 +396,7 @@ class LLMService:
         provider = cfg['provider']
         model = cfg['model'] or DEFAULT_MODELS.get(provider, '')
 
-        if provider == 'nvidia':
-            api_key = cfg['nvidia_api_key']
-            base_url = cfg['nvidia_base_url']
-        else:
-            api_key = cfg['openai_api_key']
-            base_url = cfg['openai_base_url']
+        api_key, base_url = self._resolve_openai_compat_auth(cfg, provider)
 
         if not api_key:
             return {
@@ -376,18 +420,39 @@ class LLMService:
 
                 t0 = time.time()
 
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"},
-                )
+                messages = cast(Any, [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ])
+
+                try:
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.3,
+                        response_format={"type": "json_object"},
+                    )
+                except Exception as e:
+                    err_text = str(e).lower()
+                    json_mode_not_supported = (
+                        'response_format' in err_text
+                        or 'json_object' in err_text
+                        or 'unsupported' in err_text and 'json' in err_text
+                    )
+                    if not json_mode_not_supported:
+                        raise
+
+                    logger.warning(
+                        f"[{provider.upper()}] Model tidak mendukung response_format=json_object, fallback ke mode biasa"
+                    )
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.3,
+                    )
 
                 elapsed = time.time() - t0
-                content = response.choices[0].message.content
+                content = response.choices[0].message.content or ""
 
                 logger.debug(f"[{provider.upper()}] Response in {elapsed:.2f}s")
 

@@ -53,17 +53,29 @@ class Config:
             GEMINI_API_KEYS.append(key)
     
     # LLM provider settings
-    LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'gemini')  # gemini | nvidia | openai
+    LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'gemini')  # gemini | nvidia | openai | deepseek | openrouter | siliconflow | github
     _LLM_MODEL_DEFAULTS = {
         'gemini': 'gemini-2.5-flash',
         'nvidia': 'moonshotai/kimi-k2.5',
         'openai': 'gpt-4.1',
+        'deepseek': 'deepseek-chat',
+        'openrouter': 'openai/gpt-4o-mini',
+        'siliconflow': 'Qwen/Qwen2.5-72B-Instruct',
+        'github': 'openai/gpt-4.1-mini',
     }
     LLM_MODEL = os.environ.get('LLM_MODEL') or _LLM_MODEL_DEFAULTS.get(LLM_PROVIDER, 'gemini-2.5-flash')
     NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY') or None
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or None
+    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY') or None
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY') or None
+    SILICONFLOW_API_KEY = os.environ.get('SILICONFLOW_API_KEY') or None
+    GITHUB_API_KEY = os.environ.get('GITHUB_API_KEY') or None
     NVIDIA_BASE_URL = os.environ.get('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
     OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+    DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+    OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+    SILICONFLOW_BASE_URL = os.environ.get('SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1')
+    GITHUB_BASE_URL = os.environ.get('GITHUB_BASE_URL', 'https://models.inference.ai.azure.com')
 
     # GPU settings (auto-detected)
     GPU_AVAILABLE = False
@@ -78,13 +90,18 @@ class Config:
 
         # Validate LLM provider API key requirements
         provider = app.config.get('LLM_PROVIDER', 'gemini')
-        if provider == 'nvidia' and not app.config.get('NVIDIA_API_KEY'):
+        required_key_by_provider = {
+            'nvidia': 'NVIDIA_API_KEY',
+            'openai': 'OPENAI_API_KEY',
+            'deepseek': 'DEEPSEEK_API_KEY',
+            'openrouter': 'OPENROUTER_API_KEY',
+            'siliconflow': 'SILICONFLOW_API_KEY',
+            'github': 'GITHUB_API_KEY',
+        }
+
+        required_key = required_key_by_provider.get(provider)
+        if required_key and not app.config.get(required_key):
             app.logger.warning(
-                'LLM_PROVIDER is set to "nvidia" but NVIDIA_API_KEY is not configured. '
-                'Set it in .env or Admin Panel before running scoring jobs.'
-            )
-        elif provider == 'openai' and not app.config.get('OPENAI_API_KEY'):
-            app.logger.warning(
-                'LLM_PROVIDER is set to "openai" but OPENAI_API_KEY is not configured. '
+                f'LLM_PROVIDER is set to "{provider}" but {required_key} is not configured. '
                 'Set it in .env or Admin Panel before running scoring jobs.'
             )

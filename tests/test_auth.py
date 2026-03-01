@@ -25,6 +25,12 @@ class TestLogin:
         assert response.status_code == 200
         # Should redirect to dashboard
         assert b'Dashboard' in response.data or b'dashboard' in response.data.lower()
+
+        with app.app_context():
+            user = User.query.filter_by(username='testuser').first()
+            assert user.last_login is not None
+            # Stored timestamps are UTC-naive for DateTime columns without timezone=True.
+            assert user.last_login.tzinfo is None
     
     def test_login_with_invalid_password(self, client):
         """Test login with invalid password."""

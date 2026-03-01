@@ -11,9 +11,52 @@ from wtforms import PasswordField, IntegerField, BooleanField
 from wtforms.validators import NumberRange, DataRequired
 from werkzeug.security import generate_password_hash
 from flask_wtf import FlaskForm
+from urllib.parse import urlparse
 
 from app.extensions import db
 from app.models import User, Job, JobResult, SystemLog, LLMConfig
+
+LLM_PROVIDERS = ('gemini', 'nvidia', 'openai', 'deepseek', 'openrouter', 'siliconflow', 'github')
+
+OPENAI_COMPAT_PROVIDER_FIELDS = {
+    'nvidia': ('nvidia_api_key', 'nvidia_base_url', 'NVIDIA_API_KEY', 'NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1'),
+    'openai': ('openai_api_key', 'openai_base_url', 'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+    'deepseek': ('deepseek_api_key', 'deepseek_base_url', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+    'openrouter': ('openrouter_api_key', 'openrouter_base_url', 'OPENROUTER_API_KEY', 'OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+    'siliconflow': ('siliconflow_api_key', 'siliconflow_base_url', 'SILICONFLOW_API_KEY', 'SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1'),
+    'github': ('github_api_key', 'github_base_url', 'GITHUB_API_KEY', 'GITHUB_BASE_URL', 'https://models.inference.ai.azure.com'),
+}
+
+ALLOWED_HOSTS_BY_PROVIDER = {
+    'gemini': {'generativelanguage.googleapis.com'},
+    'nvidia': {'integrate.api.nvidia.com'},
+    'openai': {'api.openai.com'},
+    'deepseek': {'api.deepseek.com'},
+    'openrouter': {'openrouter.ai'},
+    'siliconflow': {'api.siliconflow.cn'},
+    'github': {'models.inference.ai.azure.com'},
+}
+
+
+def validate_provider_base_url(provider: str, base_url: str) -> tuple[bool, str]:
+    """Validate that base URL is HTTPS, credential-free, and matches provider host policy."""
+    if not base_url:
+        return True, ''
+
+    try:
+        parsed = urlparse(base_url)
+        if parsed.scheme != 'https':
+            return False, 'Base URL harus menggunakan HTTPS'
+        if parsed.username or parsed.password:
+            return False, 'Base URL tidak boleh berisi kredensial'
+
+        allowed_hosts = ALLOWED_HOSTS_BY_PROVIDER.get(provider, set())
+        if parsed.hostname not in allowed_hosts:
+            return False, 'Base URL tidak sesuai dengan provider yang dipilih'
+    except Exception:
+        return False, 'Base URL tidak valid'
+
+    return True, ''
 
 
 class SecureAdminIndexView(AdminIndexView):
@@ -264,24 +307,39 @@ class LLMSettingsView(BaseView):
             model = request.form.get('llm_model', '').strip()
 
             # Validate provider
-            if provider not in ('gemini', 'nvidia', 'openai'):
+            if provider not in LLM_PROVIDERS:
                 flash('Provider LLM tidak valid.', 'danger')
                 return redirect(url_for('llm_settings.index'))
 
             try:
-                LLMConfig.set('llm_provider', provider)
-                LLMConfig.set('llm_model', model)
+                updates = {
+                    'llm_provider': provider,
+                    'llm_model': model,
+                }
 
                 if provider == 'gemini':
                     keys_text = request.form.get('gemini_api_keys', '').strip()
                     keys = [k.strip() for k in keys_text.splitlines() if k.strip()]
-                    LLMConfig.set('gemini_api_keys', json_module.dumps(keys))
-                elif provider == 'nvidia':
-                    LLMConfig.set('nvidia_api_key', request.form.get('nvidia_api_key', '').strip())
-                    LLMConfig.set('nvidia_base_url', request.form.get('nvidia_base_url', '').strip() or 'https://integrate.api.nvidia.com/v1')
-                elif provider == 'openai':
-                    LLMConfig.set('openai_api_key', request.form.get('openai_api_key', '').strip())
-                    LLMConfig.set('openai_base_url', request.form.get('openai_base_url', '').strip() or 'https://api.openai.com/v1')
+                    updates['gemini_api_keys'] = json_module.dumps(keys)
+                elif provider in OPENAI_COMPAT_PROVIDER_FIELDS:
+                    key_field, base_field, _, _, default_base = OPENAI_COMPAT_PROVIDER_FIELDS[provider]
+                    key_value = request.form.get(key_field, '').strip()
+                    if not key_value:
+                        flash(f'API key untuk provider {provider.upper()} wajib diisi.', 'danger')
+                        return redirect(url_for('llm_settings.index'))
+
+                    base_value = request.form.get(base_field, '').strip() or default_base
+                    base_ok, base_err = validate_provider_base_url(provider, base_value)
+                    if not base_ok:
+                        flash(base_err, 'danger')
+                        return redirect(url_for('llm_settings.index'))
+
+                    updates[key_field] = key_value
+                    updates[base_field] = base_value
+
+                for config_key, config_value in updates.items():
+                    db.session.merge(LLMConfig(key=config_key, value=config_value))
+                db.session.commit()
 
                 SystemLog.log(
                     'INFO', 'LLM_SETTINGS',
@@ -324,6 +382,14 @@ class LLMSettingsView(BaseView):
             'nvidia_base_url': _cfg_val(cfg.get('nvidia_base_url'), 'NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1'),
             'openai_api_key': _cfg_val(cfg.get('openai_api_key'), 'OPENAI_API_KEY', ''),
             'openai_base_url': _cfg_val(cfg.get('openai_base_url'), 'OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+            'deepseek_api_key': _cfg_val(cfg.get('deepseek_api_key'), 'DEEPSEEK_API_KEY', ''),
+            'deepseek_base_url': _cfg_val(cfg.get('deepseek_base_url'), 'DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+            'openrouter_api_key': _cfg_val(cfg.get('openrouter_api_key'), 'OPENROUTER_API_KEY', ''),
+            'openrouter_base_url': _cfg_val(cfg.get('openrouter_base_url'), 'OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+            'siliconflow_api_key': _cfg_val(cfg.get('siliconflow_api_key'), 'SILICONFLOW_API_KEY', ''),
+            'siliconflow_base_url': _cfg_val(cfg.get('siliconflow_base_url'), 'SILICONFLOW_BASE_URL', 'https://api.siliconflow.cn/v1'),
+            'github_api_key': _cfg_val(cfg.get('github_api_key'), 'GITHUB_API_KEY', ''),
+            'github_base_url': _cfg_val(cfg.get('github_base_url'), 'GITHUB_BASE_URL', 'https://models.inference.ai.azure.com'),
         }
 
         return self.render('admin/llm_settings.html', llm_config=llm_config)
@@ -332,7 +398,6 @@ class LLMSettingsView(BaseView):
     def fetch_models(self) -> Response:
         """AJAX endpoint to fetch available models from a provider."""
         from flask import jsonify, current_app
-        from urllib.parse import urlparse
 
         if not current_user.is_authenticated or not current_user.is_admin:
             return jsonify({'error': 'Unauthorized'}), 403
@@ -341,22 +406,15 @@ class LLMSettingsView(BaseView):
         api_key = request.form.get('api_key', '').strip()
         base_url = request.form.get('base_url', '').strip()
 
+        if provider not in LLM_PROVIDERS:
+            return jsonify({'error': 'Provider tidak didukung'}), 400
+
         if not api_key:
             return jsonify({'error': 'API key diperlukan'}), 400
 
-        # Validate base_url against allowed provider hostnames
-        ALLOWED_HOSTS = {
-            'integrate.api.nvidia.com',
-            'api.openai.com',
-            'generativelanguage.googleapis.com',
-        }
-        if base_url:
-            try:
-                parsed = urlparse(base_url)
-                if parsed.hostname not in ALLOWED_HOSTS:
-                    return jsonify({'error': 'Base URL tidak diizinkan'}), 400
-            except Exception:
-                return jsonify({'error': 'Base URL tidak valid'}), 400
+        base_ok, base_err = validate_provider_base_url(provider, base_url)
+        if not base_ok:
+            return jsonify({'error': base_err}), 400
 
         try:
             from app.services.llm_service import LLMService

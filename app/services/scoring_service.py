@@ -15,7 +15,7 @@ from typing import Dict, List, Any, Optional
 from queue import Queue
 
 from app.extensions import db
-from app.models import Job, JobResult, SystemLog
+from app.models import Job, JobResult, SystemLog, utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class ScoringService:
         with self.app.app_context():
             try:
                 # Get job from database
-                job = Job.query.get(job_id)
+                job = db.session.get(Job, job_id)
                 if not job:
                     logger.error(f"[ERROR] Job {job_id} tidak ditemukan di database")
                     return
@@ -124,7 +124,7 @@ class ScoringService:
                 
                 # Update job status
                 job.status = 'processing'
-                job.started_at = datetime.utcnow()
+                job.started_at = utc_now_naive()
                 db.session.commit()
                 logger.info(f"[OK] Job {job_id} status diubah ke 'processing'")
                 
@@ -285,7 +285,7 @@ class ScoringService:
                 # Update job as completed
                 job.status = 'completed'
                 job.result_csv_path = csv_path
-                job.completed_at = datetime.utcnow()
+                job.completed_at = utc_now_naive()
                 job.status_message = f'Berhasil menilai {success_count}/{total_files} laporan'
                 db.session.commit()
                 logger.info(f"[OK] Job {job_id} status diubah ke 'completed'")
@@ -310,11 +310,11 @@ class ScoringService:
                 
                 # Update job as failed
                 try:
-                    job = Job.query.get(job_id)
+                    job = db.session.get(Job, job_id)
                     if job:
                         job.status = 'failed'
                         job.status_message = error_msg
-                        job.completed_at = datetime.utcnow()
+                        job.completed_at = utc_now_naive()
                         db.session.commit()
                         logger.info(f"[OK] Job {job_id} status diubah ke 'failed'")
                 except Exception as db_error:
@@ -484,7 +484,7 @@ class ScoringService:
                 job_result.evaluation = result.get('evaluation', '')
                 job_result.status = 'error' if result.get('error') else 'completed'
                 job_result.error_message = result.get('evaluation') if result.get('error') else None
-                job_result.processed_at = datetime.utcnow()
+                job_result.processed_at = utc_now_naive()
                 db.session.commit()
                 logger.debug(f"[OK] JobResult updated: {filename} (status: {job_result.status})")
             else:

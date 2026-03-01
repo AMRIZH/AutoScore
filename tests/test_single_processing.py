@@ -25,17 +25,17 @@ class TestSingleProcessingIntegration:
                 },
                 content_type='multipart/form-data'
             )
-        
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert data['success'] == True
-            
-            # Verify job was created with 'single' type
-            with app.app_context():
-                from app.extensions import db
-                job = Job.query.get(data['job_id'])
-                assert job is not None
-                assert job.job_type == 'single'
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+
+        # Verify job was created with 'single' type
+        with app.app_context():
+            from app.extensions import db
+            job = db.session.get(Job, data['job_id'])
+            assert job is not None
+            assert job.job_type == 'single'
     
     def test_single_processing_multiple_files_per_student(self, auth_client, sample_image, app, tmp_path):
         """Test uploading multiple files for a single student."""
@@ -55,10 +55,11 @@ class TestSingleProcessingIntegration:
                 },
                 content_type='multipart/form-data'
             )
-        
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert data['success'] == True
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'job_id' in data
     
     def test_single_processing_multiple_students(self, auth_client, sample_image, app, tmp_path):
         """Test uploading files for multiple students."""
@@ -80,16 +81,17 @@ class TestSingleProcessingIntegration:
                 },
                 content_type='multipart/form-data'
             )
-        
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert data['success'] == True
-            
-            # Verify 2 job results were created
-            with app.app_context():
-                from app.extensions import db
-                job = Job.query.get(data['job_id'])
-                assert job.total_files == 2
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert 'job_id' in data
+
+        # Verify 2 job results were created
+        with app.app_context():
+            from app.extensions import db
+            job = db.session.get(Job, data['job_id'])
+            assert job.total_files == 2
 
 
 class TestSingleProcessingJobResults:
@@ -156,7 +158,7 @@ class TestSingleProcessingJobResults:
             db.session.commit()
             
             # Verify update
-            updated = JobResult.query.get(result.id)
+            updated = db.session.get(JobResult, result.id)
             assert updated.nim == 'L200200001'
             assert updated.student_name == 'Ahmad Fauzi'
             assert updated.score == 85

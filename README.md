@@ -28,7 +28,7 @@
 
 ## 📖 Tentang AutoScoring
 
-AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM). Mendukung multi-provider: Google Gemini, NVIDIA Build, dan OpenAI — dapat dipilih melalui Admin Panel.
+AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten laboratorium untuk menilai laporan praktikum atau tugas mahasiswa secara otomatis menggunakan Large Language Model (LLM). Mendukung multi-provider: Google Gemini, NVIDIA Build, OpenAI, DeepSeek, OpenRouter, SiliconFlow, dan GitHub Models — dapat dipilih melalui Admin Panel.
 
 ### Mengapa AutoScoring?
 
@@ -53,7 +53,7 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 | 📂 **Format Fleksibel** | Dukungan teks (TXT, MD) dan gambar untuk soal/kunci jawaban |
 | 🔑 **Kunci Jawaban & Soal** | Upload kunci jawaban dan soal sebagai referensi penilaian (wajib min. 1) |
 | 💬 **Catatan Tambahan** | Instruksi khusus untuk panduan penilaian LLM |
-| 🤖 **Multi-Provider AI** | Google Gemini, NVIDIA Build, dan OpenAI — pilih via Admin Panel |
+| 🤖 **Multi-Provider AI** | Google Gemini, NVIDIA Build, OpenAI, DeepSeek, OpenRouter, SiliconFlow, dan GitHub Models — pilih via Admin Panel |
 | 📊 **Export CSV** | Hasil penilaian lengkap dalam format CSV |
 | 🔄 **Round-Robin API** | Rotasi hingga 20 API key Gemini untuk menghindari rate limit |
 | 🖥️ **GPU Acceleration** | Akselerasi GPU untuk parsing dokumen dengan Docling + EasyOCR |
@@ -68,7 +68,7 @@ AutoScoring adalah aplikasi web berbasis Flask yang membantu dosen dan asisten l
 |----------|-----------|
 | Backend | Flask 3.0+, SQLAlchemy, Flask-Login, Flask-Admin |
 | PDF Parser | Docling (IBM), EasyOCR |
-| AI/LLM | Google Gemini, NVIDIA Build, OpenAI (multi-provider) |
+| AI/LLM | Google Gemini, NVIDIA Build, OpenAI, DeepSeek, OpenRouter, SiliconFlow, GitHub Models (multi-provider) |
 | Database | SQLite3 |
 | Frontend | Bootstrap 5, Dropzone.js |
 | Deployment | Docker (GPU/CPU), Gunicorn |
@@ -173,13 +173,17 @@ Gunakan opsi ini jika tidak memiliki GPU khusus.
 
 ### LLM Provider
 
-AutoScoring mendukung 3 provider LLM. Konfigurasi awal via `.env`, selanjutnya dapat diubah melalui **Admin Panel > Pengaturan LLM**.
+AutoScoring mendukung 7 provider LLM. Konfigurasi awal via `.env`, selanjutnya dapat diubah melalui **Admin Panel > Pengaturan LLM**.
 
 | Provider | Default Model | Cara Dapat API Key |
 |----------|--------------|--------------------|
 | Google Gemini | `gemini-2.5-flash` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
 | NVIDIA Build | `moonshotai/kimi-k2.5` | [NVIDIA Build](https://build.nvidia.com) |
 | OpenAI | `gpt-4.1` | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| DeepSeek | `deepseek-chat` | [DeepSeek Platform](https://platform.deepseek.com/api_keys) |
+| OpenRouter | `openai/gpt-4o-mini` | [OpenRouter](https://openrouter.ai/keys) |
+| SiliconFlow | `Qwen/Qwen2.5-72B-Instruct` | [SiliconFlow](https://siliconflow.cn) |
+| GitHub Models | `openai/gpt-4.1-mini` | [GitHub Models](https://github.com/marketplace/models) |
 
 Konfigurasi `.env`:
 ```
@@ -197,6 +201,22 @@ NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 # OpenAI
 OPENAI_API_KEY=sk-...
 OPENAI_BASE_URL=https://api.openai.com/v1
+
+# DeepSeek
+DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# OpenRouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+
+# SiliconFlow
+SILICONFLOW_API_KEY=sk-...
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+
+# GitHub Models
+GITHUB_API_KEY=ghp_... atau github_pat_...
+GITHUB_BASE_URL=https://models.inference.ai.azure.com
 ```
 
 ### Konfigurasi Runtime (.env)

@@ -90,10 +90,10 @@
                         <hr class="my-4">
                         
                         <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+                            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary js-tooltip" data-bs-toggle="tooltip" title="Kembali ke dashboard admin tanpa menyimpan perubahan.">
                                 <i class="bi bi-arrow-left"></i> Kembali ke Dashboard
                             </a>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary js-tooltip" data-bs-toggle="tooltip" title="Simpan pengaturan runtime saat ini ke konfigurasi aktif aplikasi.">
                                 <i class="bi bi-check-lg"></i> Simpan Pengaturan
                             </button>
                         </div>
@@ -142,4 +142,25 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('button:not([title]), a.btn:not([title])').forEach(function(el) {
+        const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ');
+        if (!label) {
+            return;
+        }
+        el.setAttribute('title', label.length > 120 ? label.slice(0, 120) : label);
+    });
+
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('[title]').forEach(function(el) {
+            if (bootstrap.Tooltip.getInstance(el)) {
+                return;
+            }
+            new bootstrap.Tooltip(el);
+        });
+    }
+});
+</script>
 {% endblock %}
