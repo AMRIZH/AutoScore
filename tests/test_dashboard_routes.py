@@ -96,6 +96,29 @@ class TestBulkProcessingUpload:
             assert data['success'] == True
             assert 'job_id' in data
 
+    def test_upload_accepts_plain_question_text_without_question_docs(self, auth_client, sample_pdf, app):
+        """Bulk upload should accept direct question text as a valid reference."""
+        with open(sample_pdf, 'rb') as f:
+            response = auth_client.post('/api/upload',
+                data={
+                    'student_files': (f, 'test_student.pdf'),
+                    'score_min': '40',
+                    'score_max': '100',
+                    'question_text': 'Jelaskan langkah-langkah analisis data dan berikan contoh output.'
+                },
+                content_type='multipart/form-data'
+            )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+
+        with app.app_context():
+            from app.extensions import db
+            job = db.session.get(Job, data['job_id'])
+            assert job is not None
+            assert 'analisis data' in (job.question_text or '').lower()
+
     def test_upload_blocked_when_provider_key_missing(self, auth_client, sample_pdf, app):
         """Bulk upload must be blocked if active provider requires API key but key is missing."""
         with app.app_context():
@@ -114,6 +137,20 @@ class TestBulkProcessingUpload:
         data = json.loads(response.data)
         assert data['success'] is False
         assert 'api key' in data['error'].lower()
+
+    def test_upload_rejects_question_text_over_limit(self, auth_client, sample_pdf):
+        """Bulk upload should reject question_text above 10000 chars."""
+        with open(sample_pdf, 'rb') as f:
+            response = auth_client.post('/api/upload', data={
+                'student_files': (f, 'test_student.pdf'),
+                'score_min': '40',
+                'score_max': '100',
+                'question_text': 'a' * 10001,
+            }, content_type='multipart/form-data')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert '10000' in data['error']
 
     def test_upload_blocked_when_github_key_missing(self, auth_client, sample_pdf, app):
         """Bulk upload must be blocked if GitHub provider key is missing."""
@@ -195,6 +232,30 @@ class TestSingleProcessingUpload:
             assert data['success'] == True
             assert 'job_id' in data
 
+    def test_single_upload_accepts_plain_question_text_without_question_docs(self, auth_client, sample_image, app):
+        """Single upload should accept direct question text as a valid reference."""
+        with open(sample_image, 'rb') as f:
+            response = auth_client.post('/api/upload-single',
+                data={
+                    'score_min': '40',
+                    'score_max': '100',
+                    'students_data': json.dumps([{'fileCount': 1}]),
+                    'student_0_files': (f, 'answer.png'),
+                    'question_text': 'Tuliskan jawaban untuk soal algoritma sorting berikut.'
+                },
+                content_type='multipart/form-data'
+            )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+
+        with app.app_context():
+            from app.extensions import db
+            job = db.session.get(Job, data['job_id'])
+            assert job is not None
+            assert 'algoritma sorting' in (job.question_text or '').lower()
+
     def test_single_upload_blocked_when_provider_key_missing(self, auth_client, sample_image, app):
         """Single upload must be blocked if active provider requires API key but key is missing."""
         with app.app_context():
@@ -214,6 +275,21 @@ class TestSingleProcessingUpload:
         data = json.loads(response.data)
         assert data['success'] is False
         assert 'api key' in data['error'].lower()
+
+    def test_single_upload_rejects_question_text_over_limit(self, auth_client, sample_image):
+        """Single upload should reject question_text above 10000 chars."""
+        with open(sample_image, 'rb') as f:
+            response = auth_client.post('/api/upload-single', data={
+                'score_min': '40',
+                'score_max': '100',
+                'students_data': json.dumps([{'fileCount': 1}]),
+                'student_0_files': (f, 'answer.png'),
+                'question_text': 'a' * 10001,
+            }, content_type='multipart/form-data')
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert '10000' in data['error']
 
 
 class TestJobStatusEndpoints:

@@ -143,6 +143,93 @@ class TestProcessSingleFile:
             # Should fail because mock returns None
             assert result.get('error') == True
 
+    def test_worker_process_single_file_has_app_context(self, app, sample_pdf):
+        """Worker execution should provide app context for LLM config/database access."""
+        from flask import current_app
+
+        class ContextAwareLLM:
+            def score_report(self, **kwargs):
+                # Accessing current_app would fail without application context.
+                assert current_app is not None
+                return {
+                    'nim': 'TIDAK_DITEMUKAN',
+                    'student_name': 'TIDAK_DITEMUKAN',
+                    'score': 88,
+                    'evaluation': 'ok',
+                    'error': False,
+                }
+
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            service._docling_service = Mock()
+            service._docling_service.parse_pdf_with_retry = Mock(return_value='Isi laporan mahasiswa')
+            service._llm_service = ContextAwareLLM()
+
+        # Call outside app_context to emulate worker-thread usage.
+        result = service._process_single_file(
+            file_info={
+                'original_name': 'L200240020_Holizah_Hanufi_A.pdf',
+                'path': str(sample_pdf),
+                'is_single_processing': False,
+            },
+            answer_key_content='kunci',
+            question_content='soal',
+            additional_notes='catatan',
+            score_min=40,
+            score_max=100,
+            enable_evaluation=True,
+        )
+
+        assert result['error'] is False
+        assert result['score'] == 88
+
+    def test_single_processing_passes_source_filename_to_llm(self, app):
+        """Single-processing should pass real uploaded filename into LLM context."""
+
+        class LLMSpy:
+            def __init__(self):
+                self.captured_filename = None
+
+            def score_report(self, **kwargs):
+                self.captured_filename = kwargs.get('source_filename')
+                return {
+                    'nim': 'TIDAK_DITEMUKAN',
+                    'student_name': 'TIDAK_DITEMUKAN',
+                    'score': 77,
+                    'evaluation': 'ok',
+                    'error': False,
+                }
+
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            service._docling_service = Mock()
+            service._docling_service.parse_multiple_documents = Mock(return_value='Gabungan jawaban')
+            spy = LLMSpy()
+            service._llm_service = spy
+
+        result = service._process_single_file(
+            file_info={
+                'original_name': 'Mahasiswa_1',
+                'source_filename': 'L200240020_Holizah_Hanufi_A.pdf',
+                'path': '/tmp/student_1',
+                'file_paths': ['/tmp/student_1/page1.png'],
+                'is_single_processing': True,
+            },
+            answer_key_content='kunci',
+            question_content='soal',
+            additional_notes='catatan',
+            score_min=40,
+            score_max=100,
+            enable_evaluation=True,
+        )
+
+        assert result['error'] is False
+        assert spy.captured_filename == 'L200240020_Holizah_Hanufi_A.pdf'
+
 
 class TestCSVGeneration:
     """Test CSV generation."""

@@ -6,6 +6,55 @@
 document.addEventListener('DOMContentLoaded', function () {
     initializeTooltips(document);
 
+    function clearElement(el) {
+        if (!el) return;
+        if (typeof el.replaceChildren === 'function') {
+            el.replaceChildren();
+        } else {
+            el.textContent = '';
+        }
+    }
+
+    function createIcon(className) {
+        const i = document.createElement('i');
+        i.className = className;
+        return i;
+    }
+
+    function setAlertHeading(headingEl, iconClass, text) {
+        clearElement(headingEl);
+        headingEl.appendChild(createIcon(iconClass));
+        headingEl.appendChild(document.createTextNode(text));
+    }
+
+    function setButtonContent(buttonEl, iconClass, text, useSpinner = false) {
+        if (!buttonEl) return;
+        clearElement(buttonEl);
+
+        if (useSpinner) {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm me-2';
+            spinner.setAttribute('aria-hidden', 'true');
+            buttonEl.appendChild(spinner);
+        } else {
+            buttonEl.appendChild(createIcon(iconClass));
+        }
+
+        buttonEl.appendChild(document.createTextNode(text));
+    }
+
+    function appendBadge(container, badgeClass, text) {
+        const countBadge = document.createElement('div');
+        countBadge.className = 'mb-2';
+
+        const badge = document.createElement('span');
+        badge.className = `badge ${badgeClass}`;
+        badge.textContent = text;
+
+        countBadge.appendChild(badge);
+        container.appendChild(countBadge);
+    }
+
     // ==================== BULK PROCESSING ELEMENTS ====================
     const uploadForm = document.getElementById('uploadForm');
     const studentUploadZone = document.getElementById('studentUploadZone');
@@ -17,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const questionDocUploadZone = document.getElementById('questionDocUploadZone');
     const questionDocFiles = document.getElementById('questionDocFiles');
     const questionDocFileList = document.getElementById('questionDocFileList');
+    const questionText = document.getElementById('questionText');
     const additionalNotes = document.getElementById('additionalNotes');
     const submitBtn = document.getElementById('submitBtn');
     const progressContainer = document.getElementById('progressContainer');
@@ -33,6 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const singleQuestionDocUploadZone = document.getElementById('singleQuestionDocUploadZone');
     const singleQuestionDocFiles = document.getElementById('singleQuestionDocFiles');
     const singleQuestionDocFileList = document.getElementById('singleQuestionDocFileList');
+    const singleQuestionText = document.getElementById('singleQuestionText');
     const singleAnswerKeyUploadZone = document.getElementById('singleAnswerKeyUploadZone');
     const singleAnswerKeyFile = document.getElementById('singleAnswerKeyFile');
     const singleAnswerKeyFileName = document.getElementById('singleAnswerKeyFileName');
@@ -242,16 +293,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateStudentFileList() {
-        studentFileList.innerHTML = '';
+        clearElement(studentFileList);
 
         if (selectedStudentFiles.length === 0) {
             return;
         }
 
-        const countBadge = document.createElement('div');
-        countBadge.className = 'mb-2';
-        countBadge.innerHTML = `<span class="badge bg-primary">${selectedStudentFiles.length} file dipilih</span>`;
-        studentFileList.appendChild(countBadge);
+        appendBadge(studentFileList, 'bg-primary', `${selectedStudentFiles.length} file dipilih`);
 
         selectedStudentFiles.forEach((file, index) => {
             const fileItem = document.createElement('div');
@@ -293,16 +341,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateQuestionDocFileList() {
         if (!questionDocFileList) return;
 
-        questionDocFileList.innerHTML = '';
+        clearElement(questionDocFileList);
 
         if (selectedQuestionDocs.length === 0) {
             return;
         }
 
-        const countBadge = document.createElement('div');
-        countBadge.className = 'mb-2';
-        countBadge.innerHTML = `<span class="badge bg-info">${selectedQuestionDocs.length}/10 file dokumen soal</span>`;
-        questionDocFileList.appendChild(countBadge);
+        appendBadge(questionDocFileList, 'bg-info', `${selectedQuestionDocs.length}/10 file dokumen soal`);
 
         selectedQuestionDocs.forEach((file, index) => {
             const fileItem = document.createElement('div');
@@ -364,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setAnswerKeyFile(file) {
-        answerKeyFileName.innerHTML = '';
+        clearElement(answerKeyFileName);
 
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
@@ -394,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.querySelector('.remove-answer-key').addEventListener('click', function () {
             answerKeyFile.value = '';
-            answerKeyFileName.innerHTML = '';
+            clearElement(answerKeyFileName);
             answerKeyUploadZone.classList.remove('has-files');
         });
     }
@@ -424,10 +469,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Validate at least one reference is provided
         const hasAnswerKey = answerKeyFile && answerKeyFile.files.length > 0;
         const hasQuestionDocs = selectedQuestionDocs.length > 0;
+        const hasQuestionText = questionText && questionText.value.trim().length > 0;
         const hasAdditionalNotes = additionalNotes && additionalNotes.value.trim().length > 0;
 
-        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
-            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
+        if (!hasAnswerKey && !hasQuestionDocs && !hasQuestionText && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Teks Soal/Tugas, atau\n• Catatan Tambahan');
             return;
         }
 
@@ -448,6 +494,10 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedQuestionDocs.forEach(file => {
             formData.append('question_documents', file);
         });
+
+        if (questionText && questionText.value.trim()) {
+            formData.append('question_text', questionText.value.trim());
+        }
 
         if (additionalNotes && additionalNotes.value.trim()) {
             formData.append('additional_notes', additionalNotes.value.trim());
@@ -557,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function () {
         hideProgress();
 
         resultAlert.className = 'alert alert-success';
-        resultAlert.querySelector('.alert-heading').innerHTML = '<i class="bi bi-check-circle me-2"></i>Penilaian Selesai!';
+        setAlertHeading(resultAlert.querySelector('.alert-heading'), 'bi bi-check-circle me-2', 'Penilaian Selesai!');
         resultMessage.textContent = message;
         downloadBtn.href = `/api/download/${jobId}`;
 
@@ -569,7 +619,7 @@ document.addEventListener('DOMContentLoaded', function () {
         hideProgress();
 
         resultAlert.className = 'alert alert-danger';
-        resultAlert.querySelector('.alert-heading').innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Terjadi Kesalahan';
+        setAlertHeading(resultAlert.querySelector('.alert-heading'), 'bi bi-exclamation-circle me-2', 'Terjadi Kesalahan');
         resultMessage.textContent = message;
         downloadBtn.style.display = 'none';
 
@@ -581,18 +631,19 @@ document.addEventListener('DOMContentLoaded', function () {
         studentFiles.disabled = disabled;
         answerKeyFile.disabled = disabled;
         if (questionDocFiles) questionDocFiles.disabled = disabled;
+        if (questionText) questionText.disabled = disabled;
         if (additionalNotes) additionalNotes.disabled = disabled;
         document.getElementById('scoreMin').disabled = disabled;
         document.getElementById('scoreMax').disabled = disabled;
         document.getElementById('enableEvaluation').disabled = disabled;
 
         if (disabled) {
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+            setButtonContent(submitBtn, '', 'Memproses...', true);
             studentUploadZone.style.pointerEvents = 'none';
             answerKeyUploadZone.style.pointerEvents = 'none';
             if (questionDocUploadZone) questionDocUploadZone.style.pointerEvents = 'none';
         } else {
-            submitBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>Mulai Penilaian';
+            setButtonContent(submitBtn, 'bi bi-play-circle me-2', 'Mulai Penilaian');
             studentUploadZone.style.pointerEvents = 'auto';
             answerKeyUploadZone.style.pointerEvents = 'auto';
             if (questionDocUploadZone) questionDocUploadZone.style.pointerEvents = 'auto';
@@ -605,11 +656,12 @@ document.addEventListener('DOMContentLoaded', function () {
         studentFiles.value = '';
         answerKeyFile.value = '';
         if (questionDocFiles) questionDocFiles.value = '';
+        if (questionText) questionText.value = '';
         if (additionalNotes) additionalNotes.value = '';
 
-        studentFileList.innerHTML = '';
-        answerKeyFileName.innerHTML = '';
-        if (questionDocFileList) questionDocFileList.innerHTML = '';
+        clearElement(studentFileList);
+        clearElement(answerKeyFileName);
+        if (questionDocFileList) clearElement(questionDocFileList);
         studentUploadZone.classList.remove('has-files');
         answerKeyUploadZone.classList.remove('has-files');
         if (questionDocUploadZone) questionDocUploadZone.classList.remove('has-files');
@@ -678,16 +730,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateSingleQuestionDocFileList() {
         if (!singleQuestionDocFileList) return;
 
-        singleQuestionDocFileList.innerHTML = '';
+        clearElement(singleQuestionDocFileList);
 
         if (singleSelectedQuestionDocs.length === 0) {
             return;
         }
 
-        const countBadge = document.createElement('div');
-        countBadge.className = 'mb-2';
-        countBadge.innerHTML = `<span class="badge bg-info">${singleSelectedQuestionDocs.length}/10 file dokumen soal</span>`;
-        singleQuestionDocFileList.appendChild(countBadge);
+        appendBadge(singleQuestionDocFileList, 'bg-info', `${singleSelectedQuestionDocs.length}/10 file dokumen soal`);
 
         singleSelectedQuestionDocs.forEach((file, index) => {
             const fileItem = createFileItem(file, index, 'single-remove-question-doc');
@@ -715,7 +764,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setSingleAnswerKeyFile(file) {
-        singleAnswerKeyFileName.innerHTML = '';
+        clearElement(singleAnswerKeyFileName);
 
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
@@ -745,7 +794,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.querySelector('.single-remove-answer-key').addEventListener('click', function () {
             singleAnswerKeyFile.value = '';
-            singleAnswerKeyFileName.innerHTML = '';
+            clearElement(singleAnswerKeyFileName);
             singleAnswerKeyUploadZone.classList.remove('has-files');
         });
     }
@@ -905,7 +954,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const fileList = document.querySelector(`.student-file-list[data-student-id="${studentId}"]`);
         const fileZone = document.querySelector(`.student-file-zone[data-student-id="${studentId}"]`);
 
-        fileList.innerHTML = '';
+        clearElement(fileList);
 
         if (student.files.length === 0) {
             fileZone.classList.remove('has-files');
@@ -927,12 +976,13 @@ document.addEventListener('DOMContentLoaded', function () {
             nameSpan.className = 'text-truncate';
             nameSpan.style.maxWidth = '200px';
             nameSpan.title = file.name;
-            nameSpan.innerHTML = `<i class="bi ${iconClass} me-1"></i>${file.name}`;
+            nameSpan.appendChild(createIcon(`bi ${iconClass} me-1`));
+            nameSpan.appendChild(document.createTextNode(file.name));
 
             const removeBtn = document.createElement('span');
             removeBtn.className = 'text-danger ms-2';
             removeBtn.style.cursor = 'pointer';
-            removeBtn.innerHTML = '<i class="bi bi-x-circle"></i>';
+            removeBtn.appendChild(createIcon('bi bi-x-circle'));
             removeBtn.addEventListener('click', function () {
                 student.files.splice(index, 1);
                 updateStudentFileList2(studentId);
@@ -1002,10 +1052,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Validate at least one reference is provided
         const hasAnswerKey = singleAnswerKeyFile && singleAnswerKeyFile.files.length > 0;
         const hasQuestionDocs = singleSelectedQuestionDocs.length > 0;
+        const hasQuestionText = singleQuestionText && singleQuestionText.value.trim().length > 0;
         const hasAdditionalNotes = singleAdditionalNotes && singleAdditionalNotes.value.trim().length > 0;
 
-        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
-            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
+        if (!hasAnswerKey && !hasQuestionDocs && !hasQuestionText && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Teks Soal/Tugas, atau\n• Catatan Tambahan');
             return;
         }
 
@@ -1020,6 +1071,10 @@ document.addEventListener('DOMContentLoaded', function () {
         singleSelectedQuestionDocs.forEach(file => {
             formData.append('question_documents', file);
         });
+
+        if (singleQuestionText && singleQuestionText.value.trim()) {
+            formData.append('question_text', singleQuestionText.value.trim());
+        }
 
         // Add answer key
         if (singleAnswerKeyFile && singleAnswerKeyFile.files.length > 0) {
@@ -1148,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', function () {
         hideSingleProgress();
 
         singleResultAlert.className = 'alert alert-success';
-        singleResultAlert.querySelector('.alert-heading').innerHTML = '<i class="bi bi-check-circle me-2"></i>Penilaian Selesai!';
+        setAlertHeading(singleResultAlert.querySelector('.alert-heading'), 'bi bi-check-circle me-2', 'Penilaian Selesai!');
         singleResultMessage.textContent = message;
         singleDownloadBtn.href = `/api/download/${jobId}`;
 
@@ -1160,7 +1215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         hideSingleProgress();
 
         singleResultAlert.className = 'alert alert-danger';
-        singleResultAlert.querySelector('.alert-heading').innerHTML = '<i class="bi bi-exclamation-circle me-2"></i>Terjadi Kesalahan';
+        setAlertHeading(singleResultAlert.querySelector('.alert-heading'), 'bi bi-exclamation-circle me-2', 'Terjadi Kesalahan');
         singleResultMessage.textContent = message;
         singleDownloadBtn.style.display = 'none';
 
@@ -1171,6 +1226,7 @@ document.addEventListener('DOMContentLoaded', function () {
         singleSubmitBtn.disabled = disabled;
         addStudentBtn.disabled = disabled;
         if (singleQuestionDocFiles) singleQuestionDocFiles.disabled = disabled;
+        if (singleQuestionText) singleQuestionText.disabled = disabled;
         if (singleAnswerKeyFile) singleAnswerKeyFile.disabled = disabled;
         if (singleAdditionalNotes) singleAdditionalNotes.disabled = disabled;
         document.getElementById('singleScoreMin').disabled = disabled;
@@ -1186,14 +1242,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         if (disabled) {
-            singleSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+            setButtonContent(singleSubmitBtn, '', 'Memproses...', true);
             if (singleQuestionDocUploadZone) singleQuestionDocUploadZone.style.pointerEvents = 'none';
             if (singleAnswerKeyUploadZone) singleAnswerKeyUploadZone.style.pointerEvents = 'none';
             document.querySelectorAll('.student-file-zone').forEach(el => {
                 el.style.pointerEvents = 'none';
             });
         } else {
-            singleSubmitBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>Mulai Penilaian';
+            setButtonContent(singleSubmitBtn, 'bi bi-play-circle me-2', 'Mulai Penilaian');
             if (singleQuestionDocUploadZone) singleQuestionDocUploadZone.style.pointerEvents = 'auto';
             if (singleAnswerKeyUploadZone) singleAnswerKeyUploadZone.style.pointerEvents = 'auto';
             document.querySelectorAll('.student-file-zone').forEach(el => {
@@ -1211,16 +1267,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // Clear file inputs
         if (singleQuestionDocFiles) singleQuestionDocFiles.value = '';
         if (singleAnswerKeyFile) singleAnswerKeyFile.value = '';
+        if (singleQuestionText) singleQuestionText.value = '';
         if (singleAdditionalNotes) singleAdditionalNotes.value = '';
 
         // Clear displays
-        if (singleQuestionDocFileList) singleQuestionDocFileList.innerHTML = '';
-        if (singleAnswerKeyFileName) singleAnswerKeyFileName.innerHTML = '';
+        if (singleQuestionDocFileList) clearElement(singleQuestionDocFileList);
+        if (singleAnswerKeyFileName) clearElement(singleAnswerKeyFileName);
         if (singleQuestionDocUploadZone) singleQuestionDocUploadZone.classList.remove('has-files');
         if (singleAnswerKeyUploadZone) singleAnswerKeyUploadZone.classList.remove('has-files');
 
         // Clear student table
-        studentTableBody.innerHTML = '';
+        clearElement(studentTableBody);
 
         // Add first student row
         addStudent();
@@ -1339,10 +1396,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Validate at least one reference is provided
         const hasAnswerKey = singleAnswerKeyFile && singleAnswerKeyFile.files.length > 0;
         const hasQuestionDocs = singleSelectedQuestionDocs.length > 0;
+        const hasQuestionText = singleQuestionText && singleQuestionText.value.trim().length > 0;
         const hasAdditionalNotes = singleAdditionalNotes && singleAdditionalNotes.value.trim().length > 0;
 
-        if (!hasAnswerKey && !hasQuestionDocs && !hasAdditionalNotes) {
-            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Catatan Tambahan');
+        if (!hasAnswerKey && !hasQuestionDocs && !hasQuestionText && !hasAdditionalNotes) {
+            alert('Minimal satu referensi harus diisi:\n• Kunci Jawaban, atau\n• Dokumen Soal/Tugas, atau\n• Teks Soal/Tugas, atau\n• Catatan Tambahan');
             return;
         }
 
@@ -1363,6 +1421,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Add question docs
         singleSelectedQuestionDocs.forEach(file => formData.append('question_documents', file));
+
+        if (singleQuestionText?.value.trim()) {
+            formData.append('question_text', singleQuestionText.value.trim());
+        }
 
         // Add answer key
         if (singleAnswerKeyFile?.files.length > 0) {
@@ -1434,10 +1496,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const processBtn = row.querySelector('.btn-process-student');
         const removeBtn = row.querySelector('.btn-remove-student');
 
-        let statusHtml = '';
+        clearElement(statusDiv);
+
         switch (student.status) {
             case 'processing':
-                statusHtml = '<span class="badge bg-warning"><i class="bi bi-hourglass-split me-1"></i>Memproses...</span>';
+                const processingBadge = document.createElement('span');
+                processingBadge.className = 'badge bg-warning';
+                processingBadge.appendChild(createIcon('bi bi-hourglass-split me-1'));
+                processingBadge.appendChild(document.createTextNode('Memproses...'));
+                statusDiv.appendChild(processingBadge);
                 if (processBtn) processBtn.disabled = true;
                 if (removeBtn) removeBtn.disabled = true;
                 break;
@@ -1445,39 +1512,79 @@ document.addEventListener('DOMContentLoaded', function () {
                 const nim = student.result?.nim || '[Tidak Terbaca]';
                 const name = student.result?.name || '[Tidak Terbaca]';
                 const score = student.result?.score ?? '-';
-                statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Selesai</span>
-                        <div class="student-result-display mt-1">
-                            <small><strong>NIM:</strong> ${nim}</small><br>
-                            <small><strong>Nama:</strong> ${name}</small><br>
-                            <small><strong>Nilai:</strong> ${score}</small>
-                        </div>`;
+
+                const completedBadge = document.createElement('span');
+                completedBadge.className = 'badge bg-success';
+                completedBadge.appendChild(createIcon('bi bi-check-circle me-1'));
+                completedBadge.appendChild(document.createTextNode('Selesai'));
+                statusDiv.appendChild(completedBadge);
+
+                const detailDiv = document.createElement('div');
+                detailDiv.className = 'student-result-display mt-1';
+
+                const nimSmall = document.createElement('small');
+                const nimStrong = document.createElement('strong');
+                nimStrong.textContent = 'NIM:';
+                nimSmall.appendChild(nimStrong);
+                nimSmall.appendChild(document.createTextNode(` ${nim}`));
+
+                const nameSmall = document.createElement('small');
+                const nameStrong = document.createElement('strong');
+                nameStrong.textContent = 'Nama:';
+                nameSmall.appendChild(nameStrong);
+                nameSmall.appendChild(document.createTextNode(` ${name}`));
+
+                const scoreSmall = document.createElement('small');
+                const scoreStrong = document.createElement('strong');
+                scoreStrong.textContent = 'Nilai:';
+                scoreSmall.appendChild(scoreStrong);
+                scoreSmall.appendChild(document.createTextNode(` ${score}`));
+
+                detailDiv.appendChild(nimSmall);
+                detailDiv.appendChild(document.createElement('br'));
+                detailDiv.appendChild(nameSmall);
+                detailDiv.appendChild(document.createElement('br'));
+                detailDiv.appendChild(scoreSmall);
+                statusDiv.appendChild(detailDiv);
+
                 if (processBtn) processBtn.disabled = true;
                 if (removeBtn) removeBtn.disabled = false;
                 break;
             case 'error':
-                statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Error</span>
-                        <div class="student-result-display mt-1 text-danger">
-                            <small>${student.result?.error || 'Terjadi kesalahan'}</small>
-                        </div>`;
+                const errorBadge = document.createElement('span');
+                errorBadge.className = 'badge bg-danger';
+                errorBadge.appendChild(createIcon('bi bi-x-circle me-1'));
+                errorBadge.appendChild(document.createTextNode('Error'));
+                statusDiv.appendChild(errorBadge);
+
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'student-result-display mt-1 text-danger';
+                const errorSmall = document.createElement('small');
+                errorSmall.textContent = student.result?.error || 'Terjadi kesalahan';
+                errorDiv.appendChild(errorSmall);
+                statusDiv.appendChild(errorDiv);
+
                 if (processBtn) {
                     processBtn.disabled = false;
-                    processBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Ulangi';
+                    setButtonContent(processBtn, 'bi bi-arrow-repeat me-1', 'Ulangi');
                     processBtn.classList.remove('btn-success');
                     processBtn.classList.add('btn-warning');
                 }
                 if (removeBtn) removeBtn.disabled = false;
                 break;
             default:
-                statusHtml = '<span class="badge bg-secondary">Menunggu</span>';
+                const pendingBadge = document.createElement('span');
+                pendingBadge.className = 'badge bg-secondary';
+                pendingBadge.textContent = 'Menunggu';
+                statusDiv.appendChild(pendingBadge);
                 if (processBtn) {
                     processBtn.disabled = false;
-                    processBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Proses';
+                    setButtonContent(processBtn, 'bi bi-play-fill me-1', 'Proses');
                     processBtn.classList.remove('btn-warning');
                     processBtn.classList.add('btn-success');
                 }
                 if (removeBtn) removeBtn.disabled = false;
         }
-        statusDiv.innerHTML = statusHtml;
     }
 
     async function checkLlmReadiness() {

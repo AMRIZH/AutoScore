@@ -99,6 +99,7 @@ class Job(db.Model):
     # Files
     answer_key_path = db.Column(db.String(500), nullable=True)
     question_doc_paths = db.Column(db.Text, nullable=True)  # JSON array of paths
+    question_text = db.Column(db.Text, nullable=True)
     total_files = db.Column(db.Integer, default=0)
     processed_files = db.Column(db.Integer, default=0)
     

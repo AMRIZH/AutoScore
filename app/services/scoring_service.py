@@ -170,27 +170,43 @@ class ScoringService:
                 else:
                     logger.info(f"[INFO] Job {job_id}: Tidak ada kunci jawaban yang disediakan")
                 
-                # Parse question documents if provided
+                # Parse plain-text question and question documents if provided.
+                question_parts = []
                 question_content = None
+
+                if job.question_text:
+                    question_text = job.question_text.strip()
+                    if question_text:
+                        question_parts.append("=== SOAL/TUGAS DARI INPUT TEKS WEB ===\n" + question_text)
+                        logger.info(
+                            f"[INFO] Job {job_id}: Teks soal langsung ditemukan ({len(question_text)} chars)"
+                        )
+
                 if job.question_doc_paths:
                     import json as json_module
                     try:
                         question_paths = json_module.loads(job.question_doc_paths)
                         if question_paths:
                             logger.info(f"[INFO] Membaca {len(question_paths)} dokumen soal/tugas")
-                            
+
                             question_start = time.time()
-                            question_content = self.docling_service.parse_multiple_documents(question_paths)
+                            question_docs_content = self.docling_service.parse_multiple_documents(question_paths)
                             question_time = time.time() - question_start
-                            
-                            if question_content:
-                                logger.info(f"[OK] Dokumen soal berhasil dibaca ({len(question_content)} chars) dalam {question_time:.2f}s")
+
+                            if question_docs_content:
+                                question_parts.append(question_docs_content)
+                                logger.info(
+                                    f"[OK] Dokumen soal berhasil dibaca ({len(question_docs_content)} chars) dalam {question_time:.2f}s"
+                                )
                             else:
                                 logger.warning(f"[WARN] Gagal membaca dokumen soal untuk job {job_id}")
                     except json_module.JSONDecodeError as e:
                         logger.error(f"[ERROR] Gagal parsing question_doc_paths JSON: {e}")
                 else:
                     logger.info(f"[INFO] Job {job_id}: Tidak ada dokumen soal yang disediakan")
+
+                if question_parts:
+                    question_content = "\n\n--- DOKUMEN SOAL/TUGAS ---\n\n".join(question_parts)
                 
                 # Get additional notes
                 additional_notes = job.additional_notes
@@ -368,48 +384,77 @@ class ScoringService:
         Note: This runs in a worker thread, so NO database operations here!
         Return results to be processed in main thread.
         """
-        filename = file_info['original_name']
-        thread_name = threading.current_thread().name
-        
-        start_time = time.time()
-        logger.debug(f"[{thread_name}] [FILE] Memproses: {filename}")
-        
-        # Check if this is single processing mode (multiple files per student)
-        is_single_processing = file_info.get('is_single_processing', False)
-        
-        parse_start = time.time()
-        student_content = None
-        
-        if is_single_processing:
-            # Single processing mode: parse multiple files and combine
-            file_paths = file_info.get('file_paths', [])
-            
-            if not file_paths:
-                error_msg = 'Tidak ada file untuk diproses'
-                logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg}")
-                return {
-                    'nim': file_info.get('nim', 'ERROR'),
-                    'student_name': file_info.get('name', 'ERROR'),
-                    'score': None,
-                    'evaluation': error_msg,
-                    'error': True,
-                    'parse_time': 0,
-                    'score_time': 0
-                }
-            
-            logger.debug(f"[{thread_name}] [PARSE] Parsing {len(file_paths)} files untuk {filename}")
-            
-            # Parse all files and combine content
-            combined_content = self.docling_service.parse_multiple_documents(file_paths)
-            
-            if combined_content:
-                student_content = combined_content
-                logger.debug(f"[{thread_name}] [OK] Combined content: {len(student_content)} chars")
+        with self.app.app_context():
+            filename = file_info['original_name']
+            thread_name = threading.current_thread().name
+
+            start_time = time.time()
+            logger.debug(f"[{thread_name}] [FILE] Memproses: {filename}")
+
+            # Check if this is single processing mode (multiple files per student)
+            is_single_processing = file_info.get('is_single_processing', False)
+
+            parse_start = time.time()
+            student_content = None
+
+            if is_single_processing:
+                # Single processing mode: parse multiple files and combine
+                file_paths = file_info.get('file_paths', [])
+
+                if not file_paths:
+                    error_msg = 'Tidak ada file untuk diproses'
+                    logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg}")
+                    return {
+                        'nim': file_info.get('nim', 'ERROR'),
+                        'student_name': file_info.get('name', 'ERROR'),
+                        'score': None,
+                        'evaluation': error_msg,
+                        'error': True,
+                        'parse_time': 0,
+                        'score_time': 0
+                    }
+
+                logger.debug(f"[{thread_name}] [PARSE] Parsing {len(file_paths)} files untuk {filename}")
+
+                # Parse all files and combine content
+                combined_content = self.docling_service.parse_multiple_documents(file_paths)
+
+                if combined_content:
+                    student_content = combined_content
+                    logger.debug(f"[{thread_name}] [OK] Combined content: {len(student_content)} chars")
+                else:
+                    error_msg = 'Gagal membaca file-file jawaban'
+                    parse_time = time.time() - parse_start
+                    logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg} ({parse_time:.2f}s)")
+
+                    return {
+                        'nim': file_info.get('nim', 'ERROR'),
+                        'student_name': file_info.get('name', 'ERROR'),
+                        'score': None,
+                        'evaluation': error_msg,
+                        'error': True,
+                        'parse_time': parse_time,
+                        'score_time': 0
+                    }
             else:
-                error_msg = f'Gagal membaca file-file jawaban'
-                parse_time = time.time() - parse_start
+                # Bulk processing mode: single PDF file
+                filepath = file_info['path']
+                logger.debug(f"[{thread_name}] [PARSE] Parsing PDF: {filename}")
+
+                student_content = self.docling_service.parse_pdf_with_retry(
+                    filepath,
+                    max_retries=self.max_retries
+                )
+
+            parse_time = time.time() - parse_start
+
+            if not student_content:
+                if is_single_processing:
+                    error_msg = 'Gagal membaca file-file jawaban'
+                else:
+                    error_msg = f'Gagal membaca file setelah {self.max_retries} percobaan'
                 logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg} ({parse_time:.2f}s)")
-                
+
                 return {
                     'nim': file_info.get('nim', 'ERROR'),
                     'student_name': file_info.get('name', 'ERROR'),
@@ -419,65 +464,41 @@ class ScoringService:
                     'parse_time': parse_time,
                     'score_time': 0
                 }
-        else:
-            # Bulk processing mode: single PDF file
-            filepath = file_info['path']
-            logger.debug(f"[{thread_name}] [PARSE] Parsing PDF: {filename}")
-            
-            student_content = self.docling_service.parse_pdf_with_retry(
-                filepath,
-                max_retries=self.max_retries
+
+            content_length = len(student_content)
+            logger.debug(f"[{thread_name}] [OK] Content parsed: {filename} ({content_length} chars, {parse_time:.2f}s)")
+
+            # Step 2: Score with LLM
+            score_start = time.time()
+            logger.debug(f"[{thread_name}] [LLM] Menilai dengan LLM: {filename}")
+
+            result = self.llm_service.score_report(
+                student_content=student_content,
+                answer_key_content=answer_key_content,
+                question_content=question_content,
+                additional_notes=additional_notes,
+                score_min=score_min,
+                score_max=score_max,
+                enable_evaluation=enable_evaluation,
+                source_filename=file_info.get('source_filename') or filename,
             )
-        
-        parse_time = time.time() - parse_start
-        
-        if not student_content:
-            error_msg = f'Gagal membaca file setelah {self.max_retries} percobaan'
-            logger.error(f"[{thread_name}] [FAIL] {filename}: {error_msg} ({parse_time:.2f}s)")
-            
-            return {
-                'nim': 'ERROR',
-                'student_name': 'ERROR',
-                'score': None,
-                'evaluation': error_msg,
-                'error': True,
-                'parse_time': parse_time,
-                'score_time': 0
-            }
-        
-        content_length = len(student_content)
-        logger.debug(f"[{thread_name}] [OK] Content parsed: {filename} ({content_length} chars, {parse_time:.2f}s)")
-        
-        # Step 2: Score with LLM
-        score_start = time.time()
-        logger.debug(f"[{thread_name}] [LLM] Menilai dengan LLM: {filename}")
-        
-        result = self.llm_service.score_report(
-            student_content=student_content,
-            answer_key_content=answer_key_content,
-            question_content=question_content,
-            additional_notes=additional_notes,
-            score_min=score_min,
-            score_max=score_max,
-            enable_evaluation=enable_evaluation
-        )
-        
-        score_time = time.time() - score_start
-        total_time = time.time() - start_time
-        
-        result['parse_time'] = parse_time
-        result['score_time'] = score_time
-        result['total_time'] = total_time
-        result['content_length'] = content_length
-        
-        if result.get('error'):
-            logger.debug(f"[{thread_name}] [FAIL] LLM scoring failed: {filename} ({score_time:.2f}s)")
-        else:
-            logger.debug(f"[{thread_name}] [OK] LLM scoring done: {filename} - Score: {result.get('score')} ({score_time:.2f}s)")
-        
-        logger.debug(f"[{thread_name}] [TIME] Total: {filename} dalam {total_time:.2f}s (parse: {parse_time:.2f}s, score: {score_time:.2f}s)")
-        
-        return result
+
+            score_time = time.time() - score_start
+            total_time = time.time() - start_time
+
+            result['parse_time'] = parse_time
+            result['score_time'] = score_time
+            result['total_time'] = total_time
+            result['content_length'] = content_length
+
+            if result.get('error'):
+                logger.debug(f"[{thread_name}] [FAIL] LLM scoring failed: {filename} ({score_time:.2f}s)")
+            else:
+                logger.debug(f"[{thread_name}] [OK] LLM scoring done: {filename} - Score: {result.get('score')} ({score_time:.2f}s)")
+
+            logger.debug(f"[{thread_name}] [TIME] Total: {filename} dalam {total_time:.2f}s (parse: {parse_time:.2f}s, score: {score_time:.2f}s)")
+
+            return result
     
     def _update_job_result_in_db(
         self,

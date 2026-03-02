@@ -350,6 +350,7 @@ def upload_files():
         score_max = int(request.form.get('score_max', current_app.config['DEFAULT_SCORE_MAX']))
         enable_evaluation = request.form.get('enable_evaluation', 'true').lower() == 'true'
         additional_notes = request.form.get('additional_notes', '').strip() or None
+        question_text = request.form.get('question_text', '').strip() or None
         
         # Validate score range
         if score_min >= score_max:
@@ -357,6 +358,9 @@ def upload_files():
         
         if score_min < 0 or score_max > 100:
             return jsonify({'success': False, 'error': 'Rentang nilai harus antara 0 dan 100.'}), 400
+
+        if question_text and len(question_text) > 10000:
+            return jsonify({'success': False, 'error': 'Teks soal/tugas maksimal 10000 karakter.'}), 400
         
         # Validate active LLM provider configuration before accepting job uploads.
         provider_ready, provider_error = _validate_llm_provider_ready()
@@ -485,10 +489,11 @@ def upload_files():
         # Validate at least one reference is provided
         has_answer_key = answer_key_path is not None
         has_question_docs = len(question_doc_paths_list) > 0
+        has_question_text = question_text is not None
         has_additional_notes = additional_notes is not None and len(additional_notes.strip()) > 0
         
-        if not has_answer_key and not has_question_docs and not has_additional_notes:
-            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, atau Catatan Tambahan.'}), 400
+        if not has_answer_key and not has_question_docs and not has_question_text and not has_additional_notes:
+            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, Teks Soal/Tugas, atau Catatan Tambahan.'}), 400
         
         # Create job in database
         job = Job(
@@ -498,6 +503,7 @@ def upload_files():
             enable_evaluation=enable_evaluation,
             answer_key_path=answer_key_path,
             question_doc_paths=question_doc_paths_json,
+            question_text=question_text,
             additional_notes=additional_notes,
             total_files=len(saved_files),
             status='pending'
@@ -557,6 +563,7 @@ def upload_single():
         score_max = int(request.form.get('score_max', current_app.config['DEFAULT_SCORE_MAX']))
         enable_evaluation = request.form.get('enable_evaluation', 'true').lower() == 'true'
         additional_notes = request.form.get('additional_notes', '').strip() or None
+        question_text = request.form.get('question_text', '').strip() or None
         
         # Validate score range
         if score_min >= score_max:
@@ -564,6 +571,9 @@ def upload_single():
         
         if score_min < 0 or score_max > 100:
             return jsonify({'success': False, 'error': 'Rentang nilai harus antara 0 dan 100.'}), 400
+
+        if question_text and len(question_text) > 10000:
+            return jsonify({'success': False, 'error': 'Teks soal/tugas maksimal 10000 karakter.'}), 400
         
         # Validate active LLM provider configuration before accepting job uploads.
         provider_ready, provider_error = _validate_llm_provider_ready()
@@ -650,6 +660,7 @@ def upload_single():
             
             # Validate and save student files
             student_file_paths = []
+            source_filename = None
             for file in student_files:
                 if file and file.filename and file.filename.strip():
                     # Validate file
@@ -658,6 +669,8 @@ def upload_single():
                         return jsonify({'success': False, 'error': f'File jawaban tidak valid untuk mahasiswa nomor {student_index + 1}: {" ".join(q_errors)}'}), 400
                     
                     filename = secure_filename(file.filename)
+                    if source_filename is None:
+                        source_filename = file.filename
                     unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
                     filepath = os.path.join(student_subfolder, unique_filename)
                     file.save(filepath)
@@ -672,6 +685,7 @@ def upload_single():
                 'original_name': f"Mahasiswa_{student_index + 1}",
                 'saved_name': f"{student_index}",
                 'path': student_subfolder,
+                'source_filename': source_filename or f"Mahasiswa_{student_index + 1}",
                 'file_paths': student_file_paths,
                 'is_single_processing': True
             })
@@ -679,10 +693,11 @@ def upload_single():
         # Validate at least one reference is provided
         has_answer_key = answer_key_path is not None
         has_question_docs = len(question_doc_paths_list) > 0
+        has_question_text = question_text is not None
         has_additional_notes = additional_notes is not None and len(additional_notes.strip()) > 0
         
-        if not has_answer_key and not has_question_docs and not has_additional_notes:
-            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, atau Catatan Tambahan.'}), 400
+        if not has_answer_key and not has_question_docs and not has_question_text and not has_additional_notes:
+            return jsonify({'success': False, 'error': 'Minimal satu referensi harus diisi: Kunci Jawaban, Dokumen Soal/Tugas, Teks Soal/Tugas, atau Catatan Tambahan.'}), 400
         
         # Create job in database
         job = Job(
@@ -692,6 +707,7 @@ def upload_single():
             enable_evaluation=enable_evaluation,
             answer_key_path=answer_key_path,
             question_doc_paths=question_doc_paths_json,
+            question_text=question_text,
             additional_notes=additional_notes,
             total_files=len(saved_files),
             status='pending',

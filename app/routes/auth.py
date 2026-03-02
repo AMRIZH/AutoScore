@@ -4,12 +4,48 @@ Authentication routes for AutoScoring application.
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_user, logout_user, login_required, current_user
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl, urlencode
+from werkzeug.routing import RequestRedirect
 
 from app.extensions import db
 from app.models import User, SystemLog, utc_now_naive
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _resolve_safe_next_endpoint(next_page: str):
+    """Resolve a safe internal next endpoint from query param."""
+    if not next_page:
+        return None
+
+    parsed = urlparse(next_page)
+    if parsed.scheme or parsed.netloc:
+        return None
+
+    path = parsed.path
+    if not path or not path.startswith('/') or path.startswith('//'):
+        return None
+
+    adapter = current_app.url_map.bind('')
+    try:
+        endpoint, values = adapter.match(path, method='GET')
+    except RequestRedirect as exc:
+        canonical = urlparse(exc.new_url)
+        canonical_path = canonical.path
+        if not canonical_path or not canonical_path.startswith('/') or canonical_path.startswith('//'):
+            return None
+        try:
+            endpoint, values = adapter.match(canonical_path, method='GET')
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+    if endpoint in {'auth.login', 'auth.logout'}:
+        return None
+
+    query_items = parse_qsl(parsed.query, keep_blank_values=True)
+    return endpoint, values, query_items
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -42,15 +78,13 @@ def login():
             SystemLog.log('INFO', 'login', f'Login berhasil: {username}', user_id=user.id)
             
             # Redirect to next page or dashboard
-            next_page = request.args.get('next')
-            parsed_next = urlparse(next_page) if next_page else None
-            if (
-                next_page
-                and parsed_next
-                and not parsed_next.netloc
-                and parsed_next.path.startswith('/')
-            ):
-                return redirect(next_page)
+            safe_next = _resolve_safe_next_endpoint(request.args.get('next'))
+            if safe_next:
+                endpoint, values, query_items = safe_next
+                target = url_for(endpoint, **values)
+                if query_items:
+                    target = f"{target}?{urlencode(query_items, doseq=True)}"
+                return redirect(target)
             return redirect(url_for('dashboard.index'))
         else:
             # Failed login

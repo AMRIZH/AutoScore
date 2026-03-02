@@ -85,3 +85,86 @@ def test_db_empty_provider_key_overrides_env_key(app):
 
         assert cfg['provider'] == 'openai'
         assert cfg['openai_api_key'] == ''
+
+
+def test_filename_fallback_populates_identity_when_model_missing_fields(app, monkeypatch):
+    """If model cannot find identity, filename fallback should populate NIM/name."""
+    with app.app_context():
+        LLMConfig.set('llm_provider', 'gemini')
+        LLMConfig.set('gemini_api_keys', '["test-gemini-key"]')
+
+        service = LLMService(current_app.config)
+
+        def fake_score_with_gemini(*args, **kwargs):
+            return {
+                'nim': 'TIDAK_DITEMUKAN',
+                'student_name': 'TIDAK_DITEMUKAN',
+                'score': 82,
+                'evaluation': 'Jawaban baik',
+                'error': False,
+            }
+
+        monkeypatch.setattr(service, '_score_with_gemini', fake_score_with_gemini)
+
+        result = service.score_report(
+            student_content='Isi laporan mahasiswa',
+            source_filename='HOLIZAH_HANUFI_1159403_assignsubmission_file_L200240020_Holizah Hanufi_A.pdf',
+        )
+
+        assert result['nim'] == 'L200240020'
+        assert result['student_name'] == 'Holizah Hanufi'
+
+
+def test_filename_fallback_does_not_override_valid_model_identity(app, monkeypatch):
+    """Filename fallback should keep model-provided NIM/name when already valid."""
+    with app.app_context():
+        LLMConfig.set('llm_provider', 'gemini')
+        LLMConfig.set('gemini_api_keys', '["test-gemini-key"]')
+
+        service = LLMService(current_app.config)
+
+        def fake_score_with_gemini(*args, **kwargs):
+            return {
+                'nim': 'L200111222',
+                'student_name': 'Nama Dari Dokumen',
+                'score': 90,
+                'evaluation': 'Sangat baik',
+                'error': False,
+            }
+
+        monkeypatch.setattr(service, '_score_with_gemini', fake_score_with_gemini)
+
+        result = service.score_report(
+            student_content='Isi laporan mahasiswa',
+            source_filename='L200240020_Holizah_Hanufi_A.pdf',
+        )
+
+        assert result['nim'] == 'L200111222'
+        assert result['student_name'] == 'Nama Dari Dokumen'
+
+
+def test_filename_fallback_ignores_unlabeled_numeric_tokens(app, monkeypatch):
+    """Date/timestamp-like numeric tokens should not be used as NIM fallback."""
+    with app.app_context():
+        LLMConfig.set('llm_provider', 'gemini')
+        LLMConfig.set('gemini_api_keys', '["test-gemini-key"]')
+
+        service = LLMService(current_app.config)
+
+        def fake_score_with_gemini(*args, **kwargs):
+            return {
+                'nim': 'TIDAK_DITEMUKAN',
+                'student_name': 'TIDAK_DITEMUKAN',
+                'score': 75,
+                'evaluation': 'cukup',
+                'error': False,
+            }
+
+        monkeypatch.setattr(service, '_score_with_gemini', fake_score_with_gemini)
+
+        result = service.score_report(
+            student_content='Isi laporan mahasiswa',
+            source_filename='IMG_20260101_12345678_report_final.pdf',
+        )
+
+        assert result['nim'] == 'TIDAK_DITEMUKAN'

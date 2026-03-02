@@ -179,8 +179,8 @@
                             <!-- Reference requirement notice -->
                             <div class="alert alert-info py-2 mb-4">
                                 <i class="bi bi-info-circle me-2"></i>
-                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, atau
-                                Catatan Tambahan
+                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, Teks
+                                Soal/Tugas, atau Catatan Tambahan
                             </div>
 
                             <!-- Answer Key Upload (Optional) -->
@@ -214,6 +214,18 @@
                                         class="d-none">
                                 </div>
                                 <div class="file-list mt-2" id="questionDocFileList"></div>
+                            </div>
+
+                            <!-- Question/Task Text Input (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold" for="questionText">
+                                    <i class="bi bi-pencil-square me-1"></i>Teks Soal/Tugas Langsung
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <textarea class="form-control" id="questionText" name="question_text" rows="4"
+                                    maxlength="10000"
+                                    placeholder="Ketik atau tempel soal/tugas di sini. Teks ini akan digabung dengan dokumen soal bila keduanya diisi."></textarea>
+                                <small class="text-muted">Maksimal 10000 karakter.</small>
                             </div>
 
                             <!-- Additional Scoring Notes (Optional) -->
@@ -406,8 +418,8 @@
                             <!-- Reference requirement notice -->
                             <div class="alert alert-info py-2 mb-4">
                                 <i class="bi bi-info-circle me-2"></i>
-                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, atau
-                                Catatan Tambahan
+                                <strong>Minimal satu wajib diisi:</strong> Kunci Jawaban, Dokumen Soal/Tugas, Teks
+                                Soal/Tugas, atau Catatan Tambahan
                             </div>
 
                             <!-- Question/Task Document Upload (Optional) -->
@@ -425,6 +437,18 @@
                                         class="d-none">
                                 </div>
                                 <div class="file-list mt-2" id="singleQuestionDocFileList"></div>
+                            </div>
+
+                            <!-- Question/Task Text Input (Optional) -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold" for="singleQuestionText">
+                                    <i class="bi bi-pencil-square me-1"></i>Teks Soal/Tugas Langsung
+                                    <span class="badge bg-secondary">Opsional</span>
+                                </label>
+                                <textarea class="form-control" id="singleQuestionText" name="question_text" rows="3"
+                                    maxlength="10000"
+                                    placeholder="Ketik atau tempel soal/tugas di sini. Teks ini akan digabung dengan dokumen soal bila keduanya diisi."></textarea>
+                                <small class="text-muted">Maksimal 10000 karakter.</small>
                             </div>
 
                             <!-- Answer Key Upload (Optional) -->
