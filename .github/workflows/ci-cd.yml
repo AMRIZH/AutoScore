@@ -158,11 +158,15 @@ jobs:
             -o BatchMode=yes \
             -o ConnectTimeout=20 \
             -o StrictHostKeyChecking=yes \
-            "${VPS_USER}@${VPS_HOST}" "
-            set -e
-            cd \"${DEPLOY_PATH}\"
+            "${VPS_USER}@${VPS_HOST}" /bin/bash -s -- "${DEPLOY_PATH}" "${GITHUB_SHA}" <<'REMOTE_SCRIPT'
+            set -euo pipefail
+
+            DEPLOY_PATH="$1"
+            TARGET_SHA="$2"
+
+            cd "${DEPLOY_PATH}"
             git fetch --prune origin
-            git checkout --force ${GITHUB_SHA}
+            git checkout --force "${TARGET_SHA}"
             git clean -fdx -e .env -e data/ -e logs/ -e results/ -e uploads/
 
             if [ ! -f .env ]; then
@@ -177,7 +181,7 @@ jobs:
 
             docker compose --env-file .env -f docker-compose.cpu.yml up -d --build --remove-orphans
             docker compose -f docker-compose.cpu.yml ps
-          "
+REMOTE_SCRIPT
 
   notify_discord:
     name: Notify Discord
