@@ -34,12 +34,28 @@ def _file_size_bytes(file_storage) -> int:
         stream.seek(current_pos)
         return size
     except Exception:
-        fallback_stream = getattr(file_storage, 'stream', file_storage)
-        current_pos = fallback_stream.tell()
-        fallback_stream.seek(0, os.SEEK_END)
-        size = fallback_stream.tell()
-        fallback_stream.seek(current_pos)
-        return size
+        stream = getattr(file_storage, 'stream', None)
+        if stream is not None and hasattr(stream, 'tell') and hasattr(stream, 'seek'):
+            try:
+                current_pos = stream.tell()
+                stream.seek(0, os.SEEK_END)
+                size = stream.tell()
+                stream.seek(current_pos)
+                return size
+            except (AttributeError, OSError):
+                pass
+
+        if hasattr(file_storage, 'tell') and hasattr(file_storage, 'seek'):
+            try:
+                current_pos = file_storage.tell()
+                file_storage.seek(0, os.SEEK_END)
+                size = file_storage.tell()
+                file_storage.seek(current_pos)
+                return size
+            except (AttributeError, OSError):
+                pass
+
+        raise ValueError('Tidak dapat menentukan ukuran file upload: stream tidak mendukung tell/seek.')
 
 
 def _validate_file_size(file_storage, max_file_size_bytes: int, label: str) -> str | None:
@@ -368,6 +384,7 @@ def index():
     return render_template('dashboard.html', 
                           recent_jobs=recent_jobs,
                           max_pdf_count=current_app.config['MAX_PDF_COUNT'],
+                          max_file_size_mb=current_app.config['MAX_FILE_SIZE_MB'],
                           default_score_min=current_app.config['DEFAULT_SCORE_MIN'],
                           default_score_max=current_app.config['DEFAULT_SCORE_MAX'])
 

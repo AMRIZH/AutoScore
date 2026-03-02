@@ -266,6 +266,7 @@ class TestCSVGeneration:
             # Read and verify content
             with open(csv_path, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
+                assert 'Status OCR Docling' in content
                 assert 'L200200001' in content
                 assert 'John Doe' in content
                 assert '85' in content
@@ -294,6 +295,84 @@ class TestCSVGeneration:
             csv_path = service._generate_csv(job_id=1, results=results, username='testuser')
             
             assert os.path.exists(csv_path)
+
+            with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+                assert 'Status OCR Docling' in content
+                assert 'Tidak Diketahui - Status OCR tidak tersedia.' in content
             
             # Cleanup
             os.unlink(csv_path)
+
+    def test_generate_csv_uses_explicit_ocr_status_fields(self, app):
+        """CSV should serialize explicit OCR status/detail when provided in result rows."""
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+
+            results = [
+                {
+                    'filename': 'student1.pdf',
+                    'nim': 'L200200001',
+                    'student_name': 'John Doe',
+                    'score': 88,
+                    'evaluation': 'OK',
+                    'docling_ocr_status': 'OCR Berhasil',
+                    'docling_ocr_detail': 'Teks hasil parsing Docling terdeteksi memadai.'
+                }
+            ]
+
+            csv_path = service._generate_csv(job_id=1, results=results, username='testuser')
+
+            with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+                assert 'OCR Berhasil - Teks hasil parsing Docling terdeteksi memadai.' in content
+
+            os.unlink(csv_path)
+
+
+class TestOcrStatusHeuristic:
+    """Test OCR success/failure heuristic for Docling parse output."""
+
+    def test_assess_ocr_status_empty_content(self, app):
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            status, detail = service._assess_docling_ocr_status('   ')
+
+            assert status == 'OCR Gagal'
+            assert 'kosong' in detail.lower()
+
+    def test_assess_ocr_status_placeholder_only_content(self, app):
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            status, detail = service._assess_docling_ocr_status('[BASE64_IMAGE_REMOVED] ![](img.png)')
+
+            assert status == 'OCR Gagal'
+            assert 'placeholder gambar' in detail.lower()
+
+    def test_assess_ocr_status_short_but_valid_content(self, app):
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            status, detail = service._assess_docling_ocr_status('Jawaban: benar 42')
+
+            assert status == 'OCR Berhasil'
+            assert 'memadai' in detail.lower()
+
+    def test_assess_ocr_status_normal_text_content(self, app):
+        with app.app_context():
+            from app.services.scoring_service import ScoringService
+
+            service = ScoringService(app)
+            status, detail = service._assess_docling_ocr_status(
+                'Mahasiswa menjelaskan algoritma sorting dengan langkah dan contoh output yang lengkap.'
+            )
+
+            assert status == 'OCR Berhasil'
+            assert 'memadai' in detail.lower()

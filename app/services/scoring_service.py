@@ -5,6 +5,7 @@ Orchestrates PDF parsing, LLM scoring, and CSV generation.
 
 import os
 import csv
+import re
 import logging
 import threading
 import time
@@ -18,6 +19,14 @@ from app.extensions import db
 from app.models import Job, JobResult, SystemLog, utc_now_naive
 
 logger = logging.getLogger(__name__)
+
+
+DOCILING_IMAGE_PLACEHOLDER_PATTERNS = [
+    re.compile(r'\[BASE64_IMAGE_REMOVED\]', re.IGNORECASE),
+    re.compile(r'!\[[^\]]*\]\([^\)]*\)', re.IGNORECASE),
+    re.compile(r'<img[^>]*>', re.IGNORECASE),
+    re.compile(r'<!--\s*image[^>]*-->', re.IGNORECASE),
+]
 
 
 class ScoringService:
@@ -410,6 +419,8 @@ class ScoringService:
                         'score': None,
                         'evaluation': error_msg,
                         'error': True,
+                        'docling_ocr_status': 'OCR Gagal',
+                        'docling_ocr_detail': 'Docling gagal memproses seluruh file jawaban.',
                         'parse_time': 0,
                         'score_time': 0
                     }
@@ -433,6 +444,8 @@ class ScoringService:
                         'score': None,
                         'evaluation': error_msg,
                         'error': True,
+                        'docling_ocr_status': 'OCR Gagal',
+                        'docling_ocr_detail': 'Docling gagal memproses seluruh file jawaban.',
                         'parse_time': parse_time,
                         'score_time': 0
                     }
@@ -461,11 +474,14 @@ class ScoringService:
                     'score': None,
                     'evaluation': error_msg,
                     'error': True,
+                    'docling_ocr_status': 'OCR Gagal',
+                    'docling_ocr_detail': 'Docling tidak menghasilkan konten yang bisa diproses.',
                     'parse_time': parse_time,
                     'score_time': 0
                 }
 
             content_length = len(student_content)
+            ocr_status, ocr_detail = self._assess_docling_ocr_status(student_content)
             logger.debug(f"[{thread_name}] [OK] Content parsed: {filename} ({content_length} chars, {parse_time:.2f}s)")
 
             # Step 2: Score with LLM
@@ -490,6 +506,8 @@ class ScoringService:
             result['score_time'] = score_time
             result['total_time'] = total_time
             result['content_length'] = content_length
+            result['docling_ocr_status'] = ocr_status
+            result['docling_ocr_detail'] = ocr_detail
 
             if result.get('error'):
                 logger.debug(f"[{thread_name}] [FAIL] LLM scoring failed: {filename} ({score_time:.2f}s)")
@@ -499,6 +517,37 @@ class ScoringService:
             logger.debug(f"[{thread_name}] [TIME] Total: {filename} dalam {total_time:.2f}s (parse: {parse_time:.2f}s, score: {score_time:.2f}s)")
 
             return result
+
+    def _assess_docling_ocr_status(self, content: Optional[str]) -> tuple[str, str]:
+        """Assess whether Docling/OCR extracted meaningful text or mostly image placeholders."""
+        if not content or not content.strip():
+            return 'OCR Gagal', 'Docling menghasilkan konten kosong.'
+
+        normalized = content
+        placeholder_detected = any(pattern.search(normalized) for pattern in DOCILING_IMAGE_PLACEHOLDER_PATTERNS)
+
+        # Remove common placeholder/image markers and markdown separators.
+        cleaned = normalized
+        for pattern in DOCILING_IMAGE_PLACEHOLDER_PATTERNS:
+            cleaned = pattern.sub(' ', cleaned)
+        cleaned = re.sub(r'---\s*Dokumen:[^-]+---', ' ', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'[`*_#>|\-]', ' ', cleaned)
+
+        # Keep only alphanumeric signal to estimate readable OCR output.
+        text_signal = re.sub(r'[^\w]+', '', cleaned, flags=re.UNICODE)
+        word_count = len(re.findall(r'\w+', cleaned, flags=re.UNICODE))
+        placeholder_chars = 0
+        for pattern in DOCILING_IMAGE_PLACEHOLDER_PATTERNS:
+            placeholder_chars += sum(len(match.group(0)) for match in pattern.finditer(normalized))
+        placeholder_ratio = placeholder_chars / max(len(normalized), 1)
+
+        # Mark as failed only when evidence strongly points to image-only/failed OCR output.
+        if placeholder_detected and (placeholder_ratio >= 0.4 and word_count < 5):
+            return 'OCR Gagal', 'Output Docling didominasi placeholder gambar tanpa teks bermakna.'
+        if len(text_signal) < 10 and word_count < 3:
+            return 'OCR Gagal', 'Teks hasil OCR terlalu sedikit untuk dinilai andal.'
+
+        return 'OCR Berhasil', 'Teks hasil parsing Docling terdeteksi memadai.'
     
     def _update_job_result_in_db(
         self,
@@ -589,7 +638,7 @@ class ScoringService:
             writer = csv.writer(csvfile)
             
             # Header
-            writer.writerow(['No', 'Filename', 'NIM', 'Nama', 'Skor', 'Evaluasi'])
+            writer.writerow(['No', 'Filename', 'NIM', 'Nama', 'Skor', 'Status OCR Docling', 'Evaluasi'])
             
             # Data rows
             for idx, result in enumerate(sorted_results, 1):
@@ -602,12 +651,16 @@ class ScoringService:
                 if not student_name or student_name in ('TIDAK_DITEMUKAN', 'ERROR', ''):
                     student_name = '[Tidak Terbaca]'
                 
+                ocr_status = result.get('docling_ocr_status') or 'Tidak Diketahui'
+                ocr_detail = result.get('docling_ocr_detail') or 'Status OCR tidak tersedia.'
+
                 writer.writerow([
                     idx,
                     result.get('filename', ''),
                     nim,
                     student_name,
                     result.get('score', ''),
+                    f"{ocr_status} - {ocr_detail}",
                     result.get('evaluation', '')
                 ])
         

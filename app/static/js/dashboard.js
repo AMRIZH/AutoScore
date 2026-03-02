@@ -6,6 +6,10 @@
 document.addEventListener('DOMContentLoaded', function () {
     initializeTooltips(document);
 
+        const dashboardConfig = document.getElementById('dashboardConfig');
+        const maxFileSizeMb = parseInt(dashboardConfig?.dataset.maxFileSizeMb || '10', 10);
+        const maxFileSizeBytes = maxFileSizeMb * 1024 * 1024;
+
     function clearElement(el) {
         if (!el) return;
         if (typeof el.replaceChildren === 'function') {
@@ -55,6 +59,59 @@ document.addEventListener('DOMContentLoaded', function () {
         container.appendChild(countBadge);
     }
 
+    function showFloatingNotification(message, variant = 'warning') {
+        const hostId = 'floatingNotificationHost';
+        let host = document.getElementById(hostId);
+
+        if (!host) {
+            host = document.createElement('div');
+            host.id = hostId;
+            host.style.position = 'fixed';
+            host.style.top = '1rem';
+            host.style.right = '1rem';
+            host.style.zIndex = '2000';
+            host.style.maxWidth = '420px';
+            document.body.appendChild(host);
+        }
+
+        const note = document.createElement('div');
+        note.className = `alert alert-${variant} shadow-sm mb-2`;
+        note.role = 'alert';
+        note.textContent = message;
+        host.appendChild(note);
+
+        setTimeout(() => {
+            if (note.parentNode) {
+                note.parentNode.removeChild(note);
+            }
+        }, 4500);
+    }
+
+    function rejectMessage(file, reason) {
+        return `${file.name}: ${reason}`;
+    }
+
+    function isPdfFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const pdfMimeTypes = ['application/pdf', 'application/x-pdf'];
+        return ext === 'pdf' || pdfMimeTypes.includes(file.type);
+    }
+
+    function validateBySize(file) {
+        if (file.size > maxFileSizeBytes) {
+            return `ukuran file melebihi batas ${maxFileSizeMb} MB`;
+        }
+        return null;
+    }
+
+    function notifyRejectedFiles(rejectedItems, contextLabel) {
+        if (!rejectedItems.length) return;
+        const maxPreview = 3;
+        const preview = rejectedItems.slice(0, maxPreview).join(' | ');
+        const more = rejectedItems.length > maxPreview ? ` (+${rejectedItems.length - maxPreview} file)` : '';
+        showFloatingNotification(`[Auto-Reject ${contextLabel}] ${preview}${more}`, 'danger');
+    }
+
     function postFormWithUploadProgress(url, formData, onProgress) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -97,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const studentUploadZone = document.getElementById('studentUploadZone');
     const studentFiles = document.getElementById('studentFiles');
     const studentFileList = document.getElementById('studentFileList');
+    const clearStudentFilesBtn = document.getElementById('clearStudentFilesBtn');
     const answerKeyUploadZone = document.getElementById('answerKeyUploadZone');
     const answerKeyFile = document.getElementById('answerKeyFile');
     const answerKeyFileName = document.getElementById('answerKeyFileName');
@@ -188,6 +246,10 @@ document.addEventListener('DOMContentLoaded', function () {
         uploadForm.addEventListener('submit', handleFormSubmit);
     }
 
+    if (clearStudentFilesBtn) {
+        clearStudentFilesBtn.addEventListener('click', clearAllStudentFiles);
+    }
+
     // New scoring button
     if (newScoringBtn) {
         newScoringBtn.addEventListener('click', resetForm);
@@ -251,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.stopPropagation();
         this.classList.remove('dragover');
 
-        const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+        const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             addStudentFiles(files);
         }
@@ -262,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.stopPropagation();
         this.classList.remove('dragover');
 
-        const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+        const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             setAnswerKeyFile(files[0]);
         }
@@ -273,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.stopPropagation();
         this.classList.remove('dragover');
 
-        const files = Array.from(e.dataTransfer.files).filter(f => isAllowedQuestionDoc(f));
+        const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             addQuestionDocs(files);
         }
@@ -301,11 +363,26 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function addStudentFiles(files) {
+        const rejected = [];
+
         files.forEach(file => {
+            const sizeError = validateBySize(file);
+            if (sizeError) {
+                rejected.push(rejectMessage(file, sizeError));
+                return;
+            }
+
+            if (!isPdfFile(file)) {
+                rejected.push(rejectMessage(file, 'tipe file harus PDF'));
+                return;
+            }
+
             if (!selectedStudentFiles.some(f => f.name === file.name && f.size === file.size)) {
                 selectedStudentFiles.push(file);
             }
         });
+
+        notifyRejectedFiles(rejected, 'Laporan Mahasiswa');
 
         updateStudentFileList();
         updateUploadZoneState();
@@ -314,15 +391,29 @@ document.addEventListener('DOMContentLoaded', function () {
     function addQuestionDocs(files) {
         const remainingSlots = 10 - selectedQuestionDocs.length;
         const filesToAdd = files.slice(0, remainingSlots);
+        const rejected = [];
 
         filesToAdd.forEach(file => {
+            const sizeError = validateBySize(file);
+            if (sizeError) {
+                rejected.push(rejectMessage(file, sizeError));
+                return;
+            }
+
+            if (!isAllowedQuestionDoc(file)) {
+                rejected.push(rejectMessage(file, 'tipe file tidak didukung'));
+                return;
+            }
+
             if (!selectedQuestionDocs.some(f => f.name === file.name && f.size === file.size)) {
                 selectedQuestionDocs.push(file);
             }
         });
 
+        notifyRejectedFiles(rejected, 'Dokumen Soal');
+
         if (files.length > remainingSlots) {
-            alert(`Hanya ${remainingSlots} file yang dapat ditambahkan. Maksimal 10 file dokumen soal.`);
+            showFloatingNotification(`Hanya ${remainingSlots} file yang dapat ditambahkan. Maksimal 10 file dokumen soal.`, 'warning');
         }
 
         updateQuestionDocFileList();
@@ -333,8 +424,11 @@ document.addEventListener('DOMContentLoaded', function () {
         clearElement(studentFileList);
 
         if (selectedStudentFiles.length === 0) {
+            if (clearStudentFilesBtn) clearStudentFilesBtn.classList.add('d-none');
             return;
         }
+
+        if (clearStudentFilesBtn) clearStudentFilesBtn.classList.remove('d-none');
 
         appendBadge(studentFileList, 'bg-primary', `${selectedStudentFiles.length} file dipilih`);
 
@@ -373,6 +467,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateUploadZoneState();
             });
         });
+    }
+
+    function clearAllStudentFiles() {
+        selectedStudentFiles = [];
+        if (studentFiles) {
+            studentFiles.value = '';
+        }
+        updateStudentFileList();
+        updateUploadZoneState();
+        showFloatingNotification('Semua file laporan mahasiswa berhasil dibersihkan.', 'info');
     }
 
     function updateQuestionDocFileList() {
@@ -446,6 +550,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setAnswerKeyFile(file) {
+        const sizeError = validateBySize(file);
+        if (sizeError) {
+            showFloatingNotification(`[Auto-Reject Kunci Jawaban] ${rejectMessage(file, sizeError)}`, 'danger');
+            return;
+        }
+
+        if (!isPdfFile(file)) {
+            showFloatingNotification(`[Auto-Reject Kunci Jawaban] ${rejectMessage(file, 'tipe file harus PDF')}`, 'danger');
+            return;
+        }
+
         clearElement(answerKeyFileName);
 
         const fileItem = document.createElement('div');
@@ -671,6 +786,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('scoreMin').disabled = disabled;
         document.getElementById('scoreMax').disabled = disabled;
         document.getElementById('enableEvaluation').disabled = disabled;
+        if (clearStudentFilesBtn) clearStudentFilesBtn.disabled = disabled;
 
         if (disabled) {
             setButtonContent(submitBtn, '', 'Memproses...', true);
@@ -700,6 +816,7 @@ document.addEventListener('DOMContentLoaded', function () {
         studentUploadZone.classList.remove('has-files');
         answerKeyUploadZone.classList.remove('has-files');
         if (questionDocUploadZone) questionDocUploadZone.classList.remove('has-files');
+        if (clearStudentFilesBtn) clearStudentFilesBtn.classList.add('d-none');
 
         resultContainer.classList.remove('active');
         downloadBtn.style.display = '';
@@ -716,7 +833,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.stopPropagation();
         this.classList.remove('dragover');
 
-        const files = Array.from(e.dataTransfer.files).filter(f => isAllowedQuestionDoc(f));
+        const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             addSingleQuestionDocs(files);
         }
@@ -732,7 +849,7 @@ document.addEventListener('DOMContentLoaded', function () {
         e.stopPropagation();
         this.classList.remove('dragover');
 
-        const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+        const files = Array.from(e.dataTransfer.files);
         if (files.length > 0) {
             setSingleAnswerKeyFile(files[0]);
         }
@@ -747,15 +864,29 @@ document.addEventListener('DOMContentLoaded', function () {
     function addSingleQuestionDocs(files) {
         const remainingSlots = 10 - singleSelectedQuestionDocs.length;
         const filesToAdd = files.slice(0, remainingSlots);
+        const rejected = [];
 
         filesToAdd.forEach(file => {
+            const sizeError = validateBySize(file);
+            if (sizeError) {
+                rejected.push(rejectMessage(file, sizeError));
+                return;
+            }
+
+            if (!isAllowedQuestionDoc(file)) {
+                rejected.push(rejectMessage(file, 'tipe file tidak didukung'));
+                return;
+            }
+
             if (!singleSelectedQuestionDocs.some(f => f.name === file.name && f.size === file.size)) {
                 singleSelectedQuestionDocs.push(file);
             }
         });
 
+        notifyRejectedFiles(rejected, 'Dokumen Soal Single');
+
         if (files.length > remainingSlots) {
-            alert(`Hanya ${remainingSlots} file yang dapat ditambahkan. Maksimal 10 file dokumen soal.`);
+            showFloatingNotification(`Hanya ${remainingSlots} file yang dapat ditambahkan. Maksimal 10 file dokumen soal.`, 'warning');
         }
 
         updateSingleQuestionDocFileList();
@@ -799,6 +930,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setSingleAnswerKeyFile(file) {
+        const sizeError = validateBySize(file);
+        if (sizeError) {
+            showFloatingNotification(`[Auto-Reject Kunci Jawaban Single] ${rejectMessage(file, sizeError)}`, 'danger');
+            return;
+        }
+
+        if (!isPdfFile(file)) {
+            showFloatingNotification(`[Auto-Reject Kunci Jawaban Single] ${rejectMessage(file, 'tipe file harus PDF')}`, 'danger');
+            return;
+        }
+
         clearElement(singleAnswerKeyFileName);
 
         const fileItem = document.createElement('div');
@@ -973,15 +1115,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const student = singleStudents.find(s => s.id === studentId);
         if (!student) return;
 
+        const rejected = [];
+
         files.forEach(file => {
+            const sizeError = validateBySize(file);
+            if (sizeError) {
+                rejected.push(rejectMessage(file, sizeError));
+                return;
+            }
+
+            if (!isAllowedQuestionDoc(file)) {
+                rejected.push(rejectMessage(file, 'tipe file tidak didukung'));
+                return;
+            }
+
             if (!student.files.some(f => f.name === file.name && f.size === file.size)) {
                 student.files.push(file);
             }
         });
 
+        notifyRejectedFiles(rejected, `Jawaban Mahasiswa #${studentId}`);
+
         updateStudentFileList2(studentId);
     }
-
     function updateStudentFileList2(studentId) {
         const student = singleStudents.find(s => s.id === studentId);
         if (!student) return;

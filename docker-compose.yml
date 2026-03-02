@@ -36,7 +36,7 @@ services:
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=false
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - DATABASE_URL=sqlite:////app/instance/autoscoring.db
       - MAX_PDF_COUNT=${MAX_PDF_COUNT:-50}
       - MAX_WORKERS=${MAX_WORKERS:-4}

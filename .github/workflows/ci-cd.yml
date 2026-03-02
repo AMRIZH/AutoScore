@@ -147,8 +147,8 @@ jobs:
 
           DEPLOY_PATH="${VPS_PROJECT_PATH}"
           if [ "${DEPLOY_PATH#/}" = "${DEPLOY_PATH}" ]; then
-            echo "VPS_PROJECT_PATH is relative; normalizing to /root/${DEPLOY_PATH}"
-            DEPLOY_PATH="/root/${DEPLOY_PATH}"
+            echo "VPS_PROJECT_PATH harus absolute path (contoh: /home/deploy/AutoScoring)"
+            exit 1
           fi
 
           ssh \
@@ -163,7 +163,7 @@ jobs:
             cd \"${DEPLOY_PATH}\"
             git fetch --prune origin
             git checkout --force ${GITHUB_SHA}
-            docker compose -f docker-compose.cpu.yml pull
+            git clean -fdx
             docker compose -f docker-compose.cpu.yml up -d --build --remove-orphans
             docker compose -f docker-compose.cpu.yml ps
           "
