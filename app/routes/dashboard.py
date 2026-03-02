@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, current_app, Response, send_file, stream_with_context
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.extensions import db
 from app.models import Job, JobResult, SystemLog
@@ -21,6 +22,37 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 # Store for job progress (in-memory, could use Redis in production)
 job_progress = {}
+
+
+def _file_size_bytes(file_storage) -> int:
+    """Return file size in bytes without consuming the stream."""
+    try:
+        stream = file_storage.stream
+        current_pos = stream.tell()
+        stream.seek(0, os.SEEK_END)
+        size = stream.tell()
+        stream.seek(current_pos)
+        return size
+    except Exception:
+        fallback_stream = getattr(file_storage, 'stream', file_storage)
+        current_pos = fallback_stream.tell()
+        fallback_stream.seek(0, os.SEEK_END)
+        size = fallback_stream.tell()
+        fallback_stream.seek(current_pos)
+        return size
+
+
+def _validate_file_size(file_storage, max_file_size_bytes: int, label: str) -> str | None:
+    """Return localized error message when uploaded file exceeds configured size limit."""
+    size_bytes = _file_size_bytes(file_storage)
+    if size_bytes > max_file_size_bytes:
+        size_mb = size_bytes / (1024 * 1024)
+        max_mb = max_file_size_bytes / (1024 * 1024)
+        return (
+            f'{label} {file_storage.filename} melebihi batas ukuran '
+            f'({size_mb:.2f} MB > {max_mb:.0f} MB).'
+        )
+    return None
 
 
 def _validate_llm_provider_ready() -> tuple[bool, str]:
@@ -367,6 +399,9 @@ def upload_files():
         if not provider_ready:
             return jsonify({'success': False, 'error': provider_error}), 400
 
+        max_count = current_app.config['MAX_PDF_COUNT']
+        max_file_size_bytes = int(current_app.config['MAX_FILE_SIZE_MB']) * 1024 * 1024
+
         # Get student files
         student_files = request.files.getlist('student_files')
         
@@ -374,9 +409,15 @@ def upload_files():
             return jsonify({'success': False, 'error': 'Tidak ada file mahasiswa yang diunggah.'}), 400
         
         # Check file count limit
-        max_count = current_app.config['MAX_PDF_COUNT']
         if len(student_files) > max_count:
             return jsonify({'success': False, 'error': f'Jumlah file melebihi batas maksimum ({max_count} file).'}), 400
+
+        # Check configured file-size limit per uploaded student file
+        for file in student_files:
+            if file and file.filename:
+                size_error = _validate_file_size(file, max_file_size_bytes, 'File')
+                if size_error:
+                    return jsonify({'success': False, 'error': size_error}), 400
         
         # Validate all PDF files
         all_errors = []
@@ -422,6 +463,10 @@ def upload_files():
         answer_key_path = None
         answer_key_file = request.files.get('answer_key')
         if answer_key_file and answer_key_file.filename:
+            size_error = _validate_file_size(answer_key_file, max_file_size_bytes, 'Kunci jawaban')
+            if size_error:
+                return jsonify({'success': False, 'error': size_error}), 400
+
             ak_errors = validate_answer_key(answer_key_file)
             if ak_errors:
                 return jsonify({'success': False, 'error': f'Kunci jawaban tidak valid: {" ".join(ak_errors)}'}), 400
@@ -438,10 +483,7 @@ def upload_files():
         question_files = []
         for qf in question_files_raw:
             if qf and qf.filename and qf.filename.strip():
-                # Check if file has content
-                qf.seek(0, 2)  # Seek to end
-                size = qf.tell()
-                qf.seek(0)  # Reset to beginning
+                size = _file_size_bytes(qf)
                 if size > 0:
                     question_files.append(qf)
         
@@ -452,6 +494,10 @@ def upload_files():
             
             # Validate all files first before creating folder
             for qfile in question_files:
+                size_error = _validate_file_size(qfile, max_file_size_bytes, 'Dokumen soal')
+                if size_error:
+                    return jsonify({'success': False, 'error': size_error}), 400
+
                 q_errors = validate_question_doc(qfile)
                 if q_errors:
                     return jsonify({'success': False, 'error': f'Dokumen soal tidak valid: {" ".join(q_errors)}'}), 400
@@ -547,6 +593,12 @@ def upload_files():
             'message': f'Berhasil mengunggah {len(saved_files)} file. Proses penilaian dimulai.'
         })
         
+    except RequestEntityTooLarge:
+        max_mb = int(current_app.config.get('MAX_FILE_SIZE_MB', 10))
+        return jsonify({
+            'success': False,
+            'error': f'Total ukuran upload melebihi batas maksimum request ({max_mb} MB).'
+        }), 413
     except Exception as e:
         current_app.logger.error(f'Error upload: {str(e)}')
         SystemLog.log('ERROR', 'upload', f'Error upload: {str(e)}', user_id=current_user.id)
@@ -580,6 +632,9 @@ def upload_single():
         if not provider_ready:
             return jsonify({'success': False, 'error': provider_error}), 400
 
+        max_count = current_app.config['MAX_PDF_COUNT']
+        max_file_size_bytes = int(current_app.config['MAX_FILE_SIZE_MB']) * 1024 * 1024
+
         # Get students data
         students_data_str = request.form.get('students_data', '[]')
         try:
@@ -589,7 +644,18 @@ def upload_single():
         
         if not students_data or len(students_data) == 0:
             return jsonify({'success': False, 'error': 'Tidak ada data mahasiswa.'}), 400
-        
+
+        total_answer_files = 0
+        for student_index in range(len(students_data)):
+            student_files = request.files.getlist(f'student_{student_index}_files')
+            total_answer_files += len([
+                file for file in student_files
+                if file and file.filename and file.filename.strip()
+            ])
+
+        if total_answer_files > max_count:
+            return jsonify({'success': False, 'error': f'Jumlah file melebihi batas maksimum ({max_count} file).'}), 400
+
         # Create job folder
         job_id = str(uuid.uuid4())
         job_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], job_id)
@@ -599,6 +665,10 @@ def upload_single():
         answer_key_path = None
         answer_key_file = request.files.get('answer_key')
         if answer_key_file and answer_key_file.filename:
+            size_error = _validate_file_size(answer_key_file, max_file_size_bytes, 'Kunci jawaban')
+            if size_error:
+                return jsonify({'success': False, 'error': size_error}), 400
+
             ak_errors = validate_answer_key(answer_key_file)
             if ak_errors:
                 return jsonify({'success': False, 'error': f'Kunci jawaban tidak valid: {" ".join(ak_errors)}'}), 400
@@ -614,9 +684,7 @@ def upload_single():
         question_files = []
         for qf in question_files_raw:
             if qf and qf.filename and qf.filename.strip():
-                qf.seek(0, 2)
-                size = qf.tell()
-                qf.seek(0)
+                size = _file_size_bytes(qf)
                 if size > 0:
                     question_files.append(qf)
         
@@ -625,6 +693,10 @@ def upload_single():
                 return jsonify({'success': False, 'error': 'Maksimal 10 file dokumen soal yang diperbolehkan.'}), 400
             
             for qfile in question_files:
+                size_error = _validate_file_size(qfile, max_file_size_bytes, 'Dokumen soal')
+                if size_error:
+                    return jsonify({'success': False, 'error': size_error}), 400
+
                 q_errors = validate_question_doc(qfile)
                 if q_errors:
                     return jsonify({'success': False, 'error': f'Dokumen soal tidak valid: {" ".join(q_errors)}'}), 400
@@ -650,8 +722,12 @@ def upload_single():
             # Students no longer provide NIM/name manually, LLM will extract it
             # Get files for this student
             student_files = request.files.getlist(f'student_{student_index}_files')
+            non_empty_student_files = [
+                file for file in student_files
+                if file and file.filename and file.filename.strip()
+            ]
             
-            if not student_files or len(student_files) == 0:
+            if not non_empty_student_files:
                 return jsonify({'success': False, 'error': f'Tidak ada file untuk mahasiswa nomor {student_index + 1}.'}), 400
             
             # Create student subfolder
@@ -661,20 +737,23 @@ def upload_single():
             # Validate and save student files
             student_file_paths = []
             source_filename = None
-            for file in student_files:
-                if file and file.filename and file.filename.strip():
-                    # Validate file
-                    q_errors = validate_question_doc(file)
-                    if q_errors:
-                        return jsonify({'success': False, 'error': f'File jawaban tidak valid untuk mahasiswa nomor {student_index + 1}: {" ".join(q_errors)}'}), 400
-                    
-                    filename = secure_filename(file.filename)
-                    if source_filename is None:
-                        source_filename = file.filename
-                    unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
-                    filepath = os.path.join(student_subfolder, unique_filename)
-                    file.save(filepath)
-                    student_file_paths.append(filepath)
+            for file in non_empty_student_files:
+                size_error = _validate_file_size(file, max_file_size_bytes, 'File jawaban')
+                if size_error:
+                    return jsonify({'success': False, 'error': size_error}), 400
+
+                # Validate file
+                q_errors = validate_question_doc(file)
+                if q_errors:
+                    return jsonify({'success': False, 'error': f'File jawaban tidak valid untuk mahasiswa nomor {student_index + 1}: {" ".join(q_errors)}'}), 400
+                
+                filename = secure_filename(file.filename)
+                if source_filename is None:
+                    source_filename = file.filename
+                unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
+                filepath = os.path.join(student_subfolder, unique_filename)
+                file.save(filepath)
+                student_file_paths.append(filepath)
             
             if not student_file_paths:
                 return jsonify({'success': False, 'error': f'Tidak ada file valid untuk mahasiswa nomor {student_index + 1}.'}), 400
@@ -752,6 +831,12 @@ def upload_single():
             'message': f'Berhasil mengunggah data {len(saved_files)} mahasiswa. Proses penilaian dimulai.'
         })
         
+    except RequestEntityTooLarge:
+        max_mb = int(current_app.config.get('MAX_FILE_SIZE_MB', 10))
+        return jsonify({
+            'success': False,
+            'error': f'Total ukuran upload melebihi batas maksimum request ({max_mb} MB).'
+        }), 413
     except Exception as e:
         current_app.logger.error(f'Error single upload: {str(e)}')
         SystemLog.log('ERROR', 'upload_single', f'Error single upload: {str(e)}', user_id=current_user.id)

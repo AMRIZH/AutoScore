@@ -6,15 +6,18 @@ Aplikasi untuk menilai laporan praktikum mahasiswa secara otomatis menggunakan L
 """
 
 import os
+import time
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import Config
 from app.extensions import db, login_manager, csrf, scheduler
+from app.services.runtime_settings_service import sync_runtime_settings
 
 
 def create_app(config_class=Config, test_config=None):
@@ -53,8 +56,41 @@ def create_app(config_class=Config, test_config=None):
     with app.app_context():
         db.create_all()
         apply_schema_patches(app)
+        try:
+            sync_runtime_settings(app.config)
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            app.logger.warning('Sinkronisasi runtime settings saat startup gagal: %s', exc)
         seed_default_users()
         log_gpu_status(app)
+
+    app.config.setdefault('RUNTIME_SETTINGS_REFRESH_TTL_SEC', 30)
+    app.config['_RUNTIME_SETTINGS_LAST_REFRESH_MONOTONIC'] = time.monotonic()
+
+    @app.before_request
+    def refresh_runtime_settings_from_db():
+        """Keep worker-local config aligned with DB-backed runtime settings."""
+        if app.config.get('TESTING'):
+            try:
+                sync_runtime_settings(app.config)
+            except SQLAlchemyError as exc:
+                db.session.rollback()
+                app.logger.warning('Sinkronisasi runtime settings gagal, gunakan config saat ini: %s', exc)
+            return
+
+        ttl_seconds = int(app.config.get('RUNTIME_SETTINGS_REFRESH_TTL_SEC', 30))
+        last_refresh = float(app.config.get('_RUNTIME_SETTINGS_LAST_REFRESH_MONOTONIC', 0.0))
+        now = time.monotonic()
+
+        if now - last_refresh < ttl_seconds:
+            return
+
+        try:
+            sync_runtime_settings(app.config)
+            app.config['_RUNTIME_SETTINGS_LAST_REFRESH_MONOTONIC'] = now
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            app.logger.warning('Sinkronisasi runtime settings gagal, gunakan config saat ini: %s', exc)
     
     # Setup cleanup scheduler
     if app.config['ENABLE_CLEANUP']:

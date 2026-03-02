@@ -12,9 +12,11 @@ from wtforms.validators import NumberRange, DataRequired
 from werkzeug.security import generate_password_hash
 from flask_wtf import FlaskForm
 from urllib.parse import urlparse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models import User, Job, JobResult, SystemLog, LLMConfig
+from app.services.runtime_settings_service import persist_runtime_settings, sync_runtime_settings
 
 LLM_PROVIDERS = ('gemini', 'nvidia', 'openai', 'deepseek', 'openrouter', 'siliconflow', 'github')
 
@@ -247,6 +249,14 @@ class SettingsView(BaseView):
         
         form = SettingsForm()
         
+        # Always refresh runtime values from DB so form reflects effective settings.
+        try:
+            sync_runtime_settings(current_app.config)
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.warning('Gagal sinkronisasi runtime settings di halaman admin: %s', e)
+            flash('Gagal memuat pengaturan terbaru dari database. Menampilkan nilai konfigurasi saat ini.', 'warning')
+
         if request.method == 'GET':
             form.max_file_size_mb.data = current_app.config.get('MAX_FILE_SIZE_MB', 10)
             form.max_pdf_count.data = current_app.config.get('MAX_PDF_COUNT', 50)
@@ -254,10 +264,29 @@ class SettingsView(BaseView):
             form.enable_cleanup.data = current_app.config.get('ENABLE_CLEANUP', True)
         
         if form.validate_on_submit():
-            current_app.config['MAX_FILE_SIZE_MB'] = form.max_file_size_mb.data
-            current_app.config['MAX_PDF_COUNT'] = form.max_pdf_count.data
-            current_app.config['ENABLE_OCR'] = form.enable_ocr.data
-            current_app.config['ENABLE_CLEANUP'] = form.enable_cleanup.data
+            max_file_size_mb = int(form.max_file_size_mb.data or 10)
+            max_pdf_count = int(form.max_pdf_count.data or 50)
+            enable_ocr = bool(form.enable_ocr.data)
+            enable_cleanup = bool(form.enable_cleanup.data)
+
+            try:
+                persist_runtime_settings(
+                    max_file_size_mb=max_file_size_mb,
+                    max_pdf_count=max_pdf_count,
+                    enable_ocr=enable_ocr,
+                    enable_cleanup=enable_cleanup,
+                )
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                current_app.logger.exception('Gagal menyimpan runtime settings: %s', e)
+                flash('Gagal menyimpan pengaturan ke database.', 'danger')
+                return self.render('admin/settings.html', form=form), 500
+
+            try:
+                sync_runtime_settings(current_app.config)
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                current_app.logger.warning('Gagal sinkronisasi runtime settings setelah update: %s', e)
             
             # Log the settings change
             try:
@@ -265,10 +294,10 @@ class SettingsView(BaseView):
                     level='INFO',
                     category='SETTINGS',
                     user_id=current_user.id,
-                    message=f'Settings updated: MAX_FILE_SIZE_MB={form.max_file_size_mb.data}, '
-                            f'MAX_PDF_COUNT={form.max_pdf_count.data}, '
-                            f'ENABLE_OCR={form.enable_ocr.data}, '
-                            f'ENABLE_CLEANUP={form.enable_cleanup.data}'
+                        message=f'Settings updated: MAX_FILE_SIZE_MB={max_file_size_mb}, '
+                            f'MAX_PDF_COUNT={max_pdf_count}, '
+                            f'ENABLE_OCR={enable_ocr}, '
+                            f'ENABLE_CLEANUP={enable_cleanup}'
                 )
                 db.session.add(log)
                 db.session.commit()

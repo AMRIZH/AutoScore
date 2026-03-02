@@ -409,3 +409,155 @@ class TestFileValidation:
             data = json.loads(response.data)
             # Should not be a file type error
             assert 'ekstensi' not in data.get('error', '').lower()
+
+
+class TestRuntimeSettingsEnforcement:
+    """Test runtime settings persistence and enforcement in upload routes."""
+
+    def test_admin_runtime_settings_are_persisted(self, auth_client, app):
+        """Posting admin runtime settings should persist values in DB-backed config."""
+        response = auth_client.post(
+            '/admin/settings/',
+            data={
+                'max_file_size_mb': '7',
+                'max_pdf_count': '12',
+                'enable_ocr': 'y',
+                'enable_cleanup': 'y',
+            },
+            follow_redirects=True,
+        )
+
+        assert response.status_code == 200
+
+        with app.app_context():
+            assert LLMConfig.get('runtime_max_file_size_mb') == '7'
+            assert LLMConfig.get('runtime_max_pdf_count') == '12'
+            assert LLMConfig.get('runtime_enable_ocr') == '1'
+            assert LLMConfig.get('runtime_enable_cleanup') == '1'
+
+    def test_bulk_upload_uses_runtime_max_pdf_count(self, auth_client, app):
+        """Bulk upload must enforce max count from DB runtime settings, not default startup value."""
+        with app.app_context():
+            LLMConfig.set('runtime_max_pdf_count', '1')
+            LLMConfig.set('runtime_max_file_size_mb', '10')
+
+        pdf_bytes = b'%PDF-1.4\n' + (b'x' * 1024)
+        response = auth_client.post(
+            '/api/upload',
+            data={
+                'score_min': '40',
+                'score_max': '100',
+                'additional_notes': 'Test notes',
+                'student_files': [
+                    (io.BytesIO(pdf_bytes), 'one.pdf'),
+                    (io.BytesIO(pdf_bytes), 'two.pdf'),
+                ],
+            },
+            content_type='multipart/form-data',
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert 'batas maksimum (1 file)' in payload['error']
+
+    def test_bulk_upload_uses_runtime_max_file_size(self, auth_client, app):
+        """Bulk upload must enforce runtime file size in MB from DB-backed settings."""
+        with app.app_context():
+            LLMConfig.set('runtime_max_pdf_count', '50')
+            LLMConfig.set('runtime_max_file_size_mb', '1')
+
+        oversized_pdf = b'%PDF-1.4\n' + (b'x' * (2 * 1024 * 1024))
+        response = auth_client.post(
+            '/api/upload',
+            data={
+                'score_min': '40',
+                'score_max': '100',
+                'additional_notes': 'Test notes',
+                'student_files': (io.BytesIO(oversized_pdf), 'oversized.pdf'),
+            },
+            content_type='multipart/form-data',
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert 'melebihi batas ukuran' in payload['error'].lower()
+
+    def test_single_upload_uses_runtime_max_pdf_count(self, auth_client, app, sample_image):
+        """Single upload must enforce runtime max count using total uploaded answer files."""
+        with app.app_context():
+            LLMConfig.set('runtime_max_pdf_count', '1')
+            LLMConfig.set('runtime_max_file_size_mb', '10')
+
+        with open(sample_image, 'rb') as img:
+            image_bytes = img.read()
+
+        response = auth_client.post(
+            '/api/upload-single',
+            data={
+                'score_min': '40',
+                'score_max': '100',
+                'students_data': json.dumps([{'fileCount': 2}]),
+                'student_0_files': [
+                    (io.BytesIO(image_bytes), 'answer1.png'),
+                    (io.BytesIO(image_bytes), 'answer2.png'),
+                ],
+                'additional_notes': 'Test notes'
+            },
+            content_type='multipart/form-data',
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert 'batas maksimum (1 file)' in payload['error']
+
+    def test_single_upload_uses_runtime_max_file_size(self, auth_client, app):
+        """Single upload must enforce runtime file-size limit on answer files."""
+        with app.app_context():
+            LLMConfig.set('runtime_max_pdf_count', '50')
+            LLMConfig.set('runtime_max_file_size_mb', '1')
+
+        oversized_png = b'\x89PNG\r\n\x1a\n' + (b'x' * (2 * 1024 * 1024))
+        response = auth_client.post(
+            '/api/upload-single',
+            data={
+                'score_min': '40',
+                'score_max': '100',
+                'students_data': json.dumps([{'fileCount': 1}]),
+                'student_0_files': (io.BytesIO(oversized_png), 'large.png'),
+                'additional_notes': 'Test notes'
+            },
+            content_type='multipart/form-data',
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert 'melebihi batas ukuran' in payload['error'].lower()
+
+    def test_single_upload_max_count_applies_across_multiple_students(self, auth_client, app, sample_image):
+        """Single upload must enforce cumulative file cap for all students in one request."""
+        with app.app_context():
+            LLMConfig.set('runtime_max_pdf_count', '2')
+            LLMConfig.set('runtime_max_file_size_mb', '10')
+
+        with open(sample_image, 'rb') as img:
+            image_bytes = img.read()
+
+        response = auth_client.post(
+            '/api/upload-single',
+            data={
+                'score_min': '40',
+                'score_max': '100',
+                'students_data': json.dumps([{'fileCount': 2}, {'fileCount': 1}]),
+                'student_0_files': [
+                    (io.BytesIO(image_bytes), 's0a.png'),
+                    (io.BytesIO(image_bytes), 's0b.png'),
+                ],
+                'student_1_files': (io.BytesIO(image_bytes), 's1a.png'),
+                'additional_notes': 'Test notes'
+            },
+            content_type='multipart/form-data',
+        )
+
+        assert response.status_code == 400
+        payload = json.loads(response.data)
+        assert 'batas maksimum (2 file)' in payload['error']

@@ -55,6 +55,43 @@ document.addEventListener('DOMContentLoaded', function () {
         container.appendChild(countBadge);
     }
 
+    function postFormWithUploadProgress(url, formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+
+            xhr.upload.onprogress = function (event) {
+                if (event.lengthComputable && typeof onProgress === 'function') {
+                    const percent = (event.loaded / event.total) * 100;
+                    onProgress(percent);
+                }
+            };
+
+            xhr.onload = function () {
+                let payload = null;
+                try {
+                    payload = JSON.parse(xhr.responseText || '{}');
+                } catch (_) {
+                    payload = null;
+                }
+
+                if (xhr.status >= 200 && xhr.status < 300 && payload) {
+                    resolve(payload);
+                    return;
+                }
+
+                const errorMessage = payload?.error || `Request gagal (${xhr.status})`;
+                reject(new Error(errorMessage));
+            };
+
+            xhr.onerror = function () {
+                reject(new Error('Gagal terhubung ke server saat upload.'));
+            };
+
+            xhr.send(formData);
+        });
+    }
+
     // ==================== BULK PROCESSING ELEMENTS ====================
     const uploadForm = document.getElementById('uploadForm');
     const studentUploadZone = document.getElementById('studentUploadZone');
@@ -507,19 +544,17 @@ document.addEventListener('DOMContentLoaded', function () {
         showProgress();
 
         try {
-            updateProgress(0, 'Mengunggah dokumen...');
+            updateProgress(0, 'Mengunggah dokumen... 0%');
 
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
+            const result = await postFormWithUploadProgress('/api/upload', formData, (percent) => {
+                updateProgress(percent, `Mengunggah dokumen... ${Math.round(percent)}%`);
             });
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.error || 'Terjadi kesalahan saat mengunggah file.');
             }
 
+            updateProgress(0, 'Upload selesai. Memulai proses penilaian...');
             const jobId = result.job_id;
             listenToProgress(jobId);
 
@@ -1103,19 +1138,17 @@ document.addEventListener('DOMContentLoaded', function () {
         showSingleProgress();
 
         try {
-            updateSingleProgress(0, 'Mengunggah dokumen...');
+            updateSingleProgress(0, 'Mengunggah dokumen... 0%');
 
-            const response = await fetch('/api/upload-single', {
-                method: 'POST',
-                body: formData
+            const result = await postFormWithUploadProgress('/api/upload-single', formData, (percent) => {
+                updateSingleProgress(percent, `Mengunggah dokumen... ${Math.round(percent)}%`);
             });
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.error || 'Terjadi kesalahan saat mengunggah file.');
             }
 
+            updateSingleProgress(0, 'Upload selesai. Memulai proses penilaian...');
             const jobId = result.job_id;
             listenToSingleProgress(jobId);
 
