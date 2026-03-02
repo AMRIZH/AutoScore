@@ -163,8 +163,19 @@ jobs:
             cd \"${DEPLOY_PATH}\"
             git fetch --prune origin
             git checkout --force ${GITHUB_SHA}
-            git clean -fdx
-            docker compose -f docker-compose.cpu.yml up -d --build --remove-orphans
+            git clean -fdx -e .env -e data/ -e logs/ -e results/ -e uploads/
+
+            if [ ! -f .env ]; then
+              echo "File .env tidak ditemukan di server (${DEPLOY_PATH}). Deploy dibatalkan."
+              exit 1
+            fi
+
+            if ! grep -Eq '^SECRET_KEY=.+' .env; then
+              echo "SECRET_KEY belum diisi di .env server. Deploy dibatalkan."
+              exit 1
+            fi
+
+            docker compose --env-file .env -f docker-compose.cpu.yml up -d --build --remove-orphans
             docker compose -f docker-compose.cpu.yml ps
           "
 
