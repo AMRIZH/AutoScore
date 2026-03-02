@@ -181,7 +181,7 @@ jobs:
 
             docker compose --env-file .env -f docker-compose.cpu.yml up -d --build --remove-orphans
             docker compose -f docker-compose.cpu.yml ps
-REMOTE_SCRIPT
+          REMOTE_SCRIPT
 
   notify_discord:
     name: Notify Discord
