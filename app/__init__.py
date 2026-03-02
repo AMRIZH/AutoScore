@@ -11,6 +11,7 @@ from logging.handlers import RotatingFileHandler
 from flask import Flask
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import inspect, text
 
 from app.config import Config
 from app.extensions import db, login_manager, csrf, scheduler
@@ -51,6 +52,7 @@ def create_app(config_class=Config, test_config=None):
     # Create database tables and seed data
     with app.app_context():
         db.create_all()
+        apply_schema_patches(app)
         seed_default_users()
         log_gpu_status(app)
     
@@ -114,6 +116,41 @@ def setup_logging(app):
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.DEBUG)
         app.logger.addHandler(console_handler)
+
+
+def apply_schema_patches(app):
+    """Apply lightweight, idempotent schema updates for existing databases."""
+    engine = db.engine
+    inspector = inspect(engine)
+
+    try:
+        job_columns = {col['name'] for col in inspector.get_columns('jobs')}
+    except Exception as exc:
+        app.logger.warning(f'Gagal memeriksa skema tabel jobs: {exc}')
+        return
+
+    required_columns = {
+        'question_doc_paths': 'TEXT',
+        'additional_notes': 'TEXT',
+        'question_text': 'TEXT',
+    }
+
+    for column_name, sql_type in required_columns.items():
+        if column_name in job_columns:
+            continue
+
+        try:
+            with engine.begin() as connection:
+                connection.execute(text(f'ALTER TABLE jobs ADD COLUMN {column_name} {sql_type}'))
+            app.logger.info(f'Migrasi skema: menambahkan kolom jobs.{column_name}')
+        except Exception as exc:
+            err = str(exc).lower()
+            duplicate_markers = ('duplicate column', 'already exists', 'duplicate column name')
+            if any(marker in err for marker in duplicate_markers):
+                app.logger.info(f'Kolom jobs.{column_name} sudah ada, lanjutkan startup.')
+                continue
+            app.logger.error(f'Gagal menambahkan kolom jobs.{column_name}: {exc}')
+            raise
 
 
 def seed_default_users():
